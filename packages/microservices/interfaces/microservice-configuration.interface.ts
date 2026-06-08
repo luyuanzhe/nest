@@ -17,6 +17,7 @@ import {
   AmqplibQueueOptions,
   RmqUrl,
 } from '../external/rmq-url.interface';
+import { ClientConfig, ConsumerConfig as PulsarConsumerConfig, ProducerConfig as PulsarProducerConfig } from '../external/pulsar.interface';
 import { TcpSocket } from '../helpers';
 import { CustomTransportStrategy } from './custom-transport-strategy.interface';
 import { Deserializer } from './deserializer.interface';
@@ -30,6 +31,7 @@ export type MicroserviceOptions =
   | MqttOptions
   | RmqOptions
   | KafkaOptions
+  | PulsarOptions
   | CustomStrategy;
 
 export type TransportId = Transport | symbol;
@@ -351,6 +353,25 @@ export interface KafkaOptions {
     serializer?: Serializer;
     deserializer?: Deserializer;
     parser?: KafkaParserConfig;
+    producerOnlyMode?: boolean;
+  };
+}
+
+/**
+ * @publicApi
+ */
+export interface PulsarOptions {
+  transport?: Transport.PULSAR;
+  options?: {
+    /**
+     * Defaults to `"-server"` on server side and `"-client"` on client side.
+     */
+    postfixId?: string;
+    client?: ClientConfig;
+    consumer?: PulsarConsumerConfig;
+    producer?: PulsarProducerConfig;
+    serializer?: Serializer;
+    deserializer?: Deserializer;
     producerOnlyMode?: boolean;
   };
 }

@@ -1,0 +1,173 @@
+diff --git a/packages/microservices/client/client-proxy-factory.ts b/packages/microservices/client/client-proxy-factory.ts
+index ab7abccb0..82e4d9f62 100644
+--- a/packages/microservices/client/client-proxy-factory.ts
++++ b/packages/microservices/client/client-proxy-factory.ts
+@@ -10,6 +10,7 @@ import {
+   KafkaOptions,
+   MqttOptions,
+   NatsOptions,
++  PulsarOptions,
+   RedisOptions,
+   RmqOptions,
+ } from '../interfaces/microservice-configuration.interface';
+@@ -17,6 +18,7 @@ import { ClientGrpcProxy } from './client-grpc';
+ import { ClientKafka } from './client-kafka';
+ import { ClientMqtt } from './client-mqtt';
+ import { ClientNats } from './client-nats';
++import { ClientPulsar } from './client-pulsar';
+ import { ClientProxy } from './client-proxy';
+ import { ClientRedis } from './client-redis';
+ import { ClientRMQ } from './client-rmq';
+@@ -67,6 +69,8 @@ export class ClientProxyFactory {
+         ) as ClientProxy;
+       case Transport.KAFKA:
+         return new ClientKafka(options as Required<KafkaOptions>['options']);
++      case Transport.PULSAR:
++        return new ClientPulsar(options as Required<PulsarOptions>['options']);
+       default:
+         return new ClientTCP(
+           options as Required<TcpClientOptions>['options'],
+diff --git a/packages/microservices/client/index.ts b/packages/microservices/client/index.ts
+index c75c4849d..2de1eb73a 100644
+--- a/packages/microservices/client/index.ts
++++ b/packages/microservices/client/index.ts
+@@ -2,6 +2,7 @@ export * from './client-grpc';
+ export * from './client-kafka';
+ export * from './client-mqtt';
+ export * from './client-nats';
++export * from './client-pulsar';
+ export * from './client-proxy';
+ export { ClientProxyFactory } from './client-proxy-factory';
+ export * from './client-redis';
+diff --git a/packages/microservices/constants.ts b/packages/microservices/constants.ts
+index 6e7174a38..4e5678e2c 100644
+--- a/packages/microservices/constants.ts
++++ b/packages/microservices/constants.ts
+@@ -11,6 +11,9 @@ export const RQM_DEFAULT_URL = 'amqp://localhost';
+ export const KAFKA_DEFAULT_BROKER = 'localhost:9092';
+ export const KAFKA_DEFAULT_CLIENT = 'nestjs-consumer';
+ export const KAFKA_DEFAULT_GROUP = 'nestjs-group';
++export const PULSAR_DEFAULT_SERVICE_URL = 'pulsar://localhost:6650';
++export const PULSAR_DEFAULT_CLIENT = 'nestjs-pulsar-client';
++export const PULSAR_DEFAULT_SUBSCRIPTION = 'nestjs-subscription';
+ export const MQTT_SEPARATOR = '/';
+ export const MQTT_WILDCARD_SINGLE = '+';
+ export const MQTT_WILDCARD_ALL = '#';
+diff --git a/packages/microservices/ctx-host/index.ts b/packages/microservices/ctx-host/index.ts
+index 9d871dee2..b8b38e105 100644
+--- a/packages/microservices/ctx-host/index.ts
++++ b/packages/microservices/ctx-host/index.ts
+@@ -1,6 +1,7 @@
+ export * from './kafka.context';
+ export * from './mqtt.context';
+ export * from './nats.context';
++export * from './pulsar.context';
+ export * from './redis.context';
+ export * from './rmq.context';
+ export * from './tcp.context';
+diff --git a/packages/microservices/enums/transport.enum.ts b/packages/microservices/enums/transport.enum.ts
+index 4e685f2d2..84f52609d 100644
+--- a/packages/microservices/enums/transport.enum.ts
++++ b/packages/microservices/enums/transport.enum.ts
+@@ -6,4 +6,5 @@ export enum Transport {
+   GRPC,
+   RMQ,
+   KAFKA,
++  PULSAR,
+ }
+diff --git a/packages/microservices/events/index.ts b/packages/microservices/events/index.ts
+index df8d4959f..096eb1042 100644
+--- a/packages/microservices/events/index.ts
++++ b/packages/microservices/events/index.ts
+@@ -1,6 +1,7 @@
+ export { KafkaStatus } from './kafka.events';
+ export { MqttEvents, MqttStatus } from './mqtt.events';
+ export { NatsEvents, NatsStatus } from './nats.events';
++export { PulsarStatus } from './pulsar.events';
+ export { RedisEvents, RedisStatus } from './redis.events';
+ export { RmqEvents, RmqStatus } from './rmq.events';
+ export { TcpEvents, TcpStatus } from './tcp.events';
+diff --git a/packages/microservices/interfaces/microservice-configuration.interface.ts b/packages/microservices/interfaces/microservice-configuration.interface.ts
+index 2e90a6592..5db652865 100644
+--- a/packages/microservices/interfaces/microservice-configuration.interface.ts
++++ b/packages/microservices/interfaces/microservice-configuration.interface.ts
+@@ -17,6 +17,7 @@ import {
+   AmqplibQueueOptions,
+   RmqUrl,
+ } from '../external/rmq-url.interface';
++import { ClientConfig, ConsumerConfig as PulsarConsumerConfig, ProducerConfig as PulsarProducerConfig } from '../external/pulsar.interface';
+ import { TcpSocket } from '../helpers';
+ import { CustomTransportStrategy } from './custom-transport-strategy.interface';
+ import { Deserializer } from './deserializer.interface';
+@@ -30,6 +31,7 @@ export type MicroserviceOptions =
+   | MqttOptions
+   | RmqOptions
+   | KafkaOptions
++  | PulsarOptions
+   | CustomStrategy;
+ 
+ export type TransportId = Transport | symbol;
+@@ -354,3 +356,22 @@ export interface KafkaOptions {
+     producerOnlyMode?: boolean;
+   };
+ }
++
++/**
++ * @publicApi
++ */
++export interface PulsarOptions {
++  transport?: Transport.PULSAR;
++  options?: {
++    /**
++     * Defaults to `"-server"` on server side and `"-client"` on client side.
++     */
++    postfixId?: string;
++    client?: ClientConfig;
++    consumer?: PulsarConsumerConfig;
++    producer?: PulsarProducerConfig;
++    serializer?: Serializer;
++    deserializer?: Deserializer;
++    producerOnlyMode?: boolean;
++  };
++}
+diff --git a/packages/microservices/server/index.ts b/packages/microservices/server/index.ts
+index 078d17a2f..e95f029a4 100644
+--- a/packages/microservices/server/index.ts
++++ b/packages/microservices/server/index.ts
+@@ -3,6 +3,7 @@ export * from './server-grpc';
+ export * from './server-kafka';
+ export * from './server-mqtt';
+ export * from './server-nats';
++export * from './server-pulsar';
+ export * from './server-redis';
+ export * from './server-rmq';
+ export * from './server-tcp';
+diff --git a/packages/microservices/server/server-factory.ts b/packages/microservices/server/server-factory.ts
+index 35d226f78..f499dc96b 100644
+--- a/packages/microservices/server/server-factory.ts
++++ b/packages/microservices/server/server-factory.ts
+@@ -5,6 +5,7 @@ import {
+   MicroserviceOptions,
+   MqttOptions,
+   NatsOptions,
++  PulsarOptions,
+   RedisOptions,
+   RmqOptions,
+   TcpOptions,
+@@ -13,6 +14,7 @@ import { ServerGrpc } from './server-grpc';
+ import { ServerKafka } from './server-kafka';
+ import { ServerMqtt } from './server-mqtt';
+ import { ServerNats } from './server-nats';
++import { ServerPulsar } from './server-pulsar';
+ import { ServerRedis } from './server-redis';
+ import { ServerRMQ } from './server-rmq';
+ import { ServerTCP } from './server-tcp';
+@@ -36,6 +38,8 @@ export class ServerFactory {
+         return new ServerKafka(options as Required<KafkaOptions>['options']);
+       case Transport.RMQ:
+         return new ServerRMQ(options as Required<RmqOptions>['options']);
++      case Transport.PULSAR:
++        return new ServerPulsar(options as Required<PulsarOptions>['options']);
+       default:
+         return new ServerTCP(options as Required<TcpOptions>['options']);
+     }
