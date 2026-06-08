@@ -1,37 +1,15 @@
 import { Injectable } from '../decorators/core/injectable.decorator';
 import { Optional } from '../decorators/core/optional.decorator';
-import { HttpStatus } from '../enums/http-status.enum';
+import { ArgumentMetadata } from '../interfaces/features/pipe-transform.interface';
 import {
-  ArgumentMetadata,
-  PipeTransform,
-} from '../interfaces/features/pipe-transform.interface';
-import {
-  ErrorHttpStatusCode,
-  HttpErrorByCode,
-} from '../utils/http-error-by-code.util';
-import { isNil } from '../utils/shared.utils';
+  AbstractParsePipe,
+  AbstractParsePipeOptions,
+} from './abstract-parse.pipe';
 
 /**
  * @publicApi
  */
-export interface ParseBoolPipeOptions {
-  /**
-   * The HTTP status code to be used in the response when the validation fails.
-   */
-  errorHttpStatusCode?: ErrorHttpStatusCode;
-  /**
-   * A factory function that returns an exception object to be thrown
-   * if validation fails.
-   * @param error Error message
-   * @returns The exception object
-   */
-  exceptionFactory?: (error: string) => any;
-  /**
-   * If true, the pipe will return null or undefined if the value is not provided
-   * @default false
-   */
-  optional?: boolean;
-}
+export interface ParseBoolPipeOptions extends AbstractParsePipeOptions {}
 
 /**
  * Defines the built-in ParseBool Pipe
@@ -41,19 +19,12 @@ export interface ParseBoolPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseBoolPipe implements PipeTransform<
+export class ParseBoolPipe extends AbstractParsePipe<
   string | boolean,
-  Promise<boolean>
+  boolean
 > {
-  protected exceptionFactory: (error: string) => any;
-
   constructor(@Optional() protected readonly options?: ParseBoolPipeOptions) {
-    options = options || {};
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+    super(options);
   }
 
   /**
@@ -66,8 +37,8 @@ export class ParseBoolPipe implements PipeTransform<
   async transform(
     value: string | boolean,
     metadata: ArgumentMetadata,
-  ): Promise<boolean> {
-    if (isNil(value) && this.options?.optional) {
+  ): Promise<boolean | string> {
+    if (this.isOptionalAndNil(value)) {
       return value;
     }
     if (this.isTrue(value)) {

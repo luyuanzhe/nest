@@ -1,3 +1,4 @@
+export * from './abstract-parse.pipe';
 export * from './default-value.pipe';
 export * from './file';
 export * from './parse-array.pipe';
