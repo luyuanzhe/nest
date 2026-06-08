@@ -93,6 +93,7 @@ export class DependenciesScanner {
       overrides: options?.overrides,
     });
     await this.scanModulesForDependencies();
+    this.container.checkCircularModuleDependencies();
     this.addScopedEnhancersMetadata();
 
     // Modules distance calculation should be done after all modules are scanned

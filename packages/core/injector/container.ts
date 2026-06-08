@@ -361,6 +361,64 @@ export class NestContainer {
     });
   }
 
+  public checkCircularModuleDependencies(): void {
+    const visited = new Set<string>();
+    const recursionStack = new Set<string>();
+    const cycles: string[][] = [];
+
+    for (const [token, moduleRef] of this.modules) {
+      if (!visited.has(token)) {
+        this.detectModuleCycle(token, moduleRef, visited, recursionStack, [], cycles);
+      }
+    }
+
+    if (cycles.length > 0) {
+      const cycleDescriptions = cycles
+        .map(cycle => cycle.join(' -> '))
+        .join('\n');
+      throw new CircularDependencyException(
+        `module dependency cycle detected:\n${cycleDescriptions}`,
+      );
+    }
+  }
+
+  private detectModuleCycle(
+    token: string,
+    moduleRef: Module,
+    visited: Set<string>,
+    recursionStack: Set<string>,
+    path: string[],
+    cycles: string[][],
+  ): void {
+    visited.add(token);
+    recursionStack.add(token);
+    path.push(moduleRef.name || token);
+
+    for (const importedModule of moduleRef.imports) {
+      const importedToken = importedModule.token;
+      if (!visited.has(importedToken)) {
+        this.detectModuleCycle(
+          importedToken,
+          importedModule,
+          visited,
+          recursionStack,
+          path,
+          cycles,
+        );
+      } else if (recursionStack.has(importedToken)) {
+        const cycleStartIndex = path.indexOf(importedModule.name || importedToken);
+        if (cycleStartIndex === -1) {
+          cycles.push(path.concat(importedModule.name || importedToken));
+        } else {
+          cycles.push(path.slice(cycleStartIndex).concat(importedModule.name || importedToken));
+        }
+      }
+    }
+
+    recursionStack.delete(token);
+    path.pop();
+  }
+
   private shouldInitOnPreview(type: Type) {
     return InitializeOnPreviewAllowlist.has(type);
   }
