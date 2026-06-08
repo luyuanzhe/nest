@@ -143,7 +143,7 @@ export class SocketModule<
       new PipesConsumer(),
       new GuardsContextCreator(container),
       new GuardsConsumer(),
-      new InterceptorsContextCreator(container),
+      new InterceptorsContextCreator(container, this.applicationConfig),
       new InterceptorsConsumer(),
     );
   }

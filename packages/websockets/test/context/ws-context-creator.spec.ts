@@ -1,3 +1,4 @@
+import { ApplicationConfig } from '@nestjs/core/application-config';
 import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
 import { expect } from 'chai';
 import { of } from 'rxjs';
@@ -17,6 +18,7 @@ import { WsProxy } from '../../context/ws-proxy';
 import { WsParamtype } from '../../enums/ws-paramtype.enum';
 import { WsParamsFactory } from '../../factories/ws-params-factory';
 import { WsException } from '../../index';
+import { WsTimeoutInterceptor } from '../../interceptors';
 
 @Injectable()
 class TestGuard {
@@ -38,6 +40,8 @@ describe('WsContextCreator', () => {
   let pipesConsumer: PipesConsumer;
   let guardsContextCreator: GuardsContextCreator;
   let guardsConsumer: GuardsConsumer;
+  let interceptorsConsumer: InterceptorsConsumer;
+  let applicationConfig: ApplicationConfig;
   let instance: Test;
   let module: string;
 
@@ -54,6 +58,7 @@ describe('WsContextCreator', () => {
     wsProxy = new WsProxy();
     sinon.stub(wsProxy, 'create').callsFake(a => a);
 
+    applicationConfig = new ApplicationConfig();
     exceptionFiltersContext = new ExceptionFiltersContext(
       new NestContainer() as any,
     );
@@ -61,6 +66,7 @@ describe('WsContextCreator', () => {
     pipesConsumer = new PipesConsumer();
     guardsContextCreator = new GuardsContextCreator(new NestContainer());
     guardsConsumer = new GuardsConsumer();
+    interceptorsConsumer = new InterceptorsConsumer();
     contextCreator = new WsContextCreator(
       wsProxy,
       exceptionFiltersContext,
@@ -68,8 +74,11 @@ describe('WsContextCreator', () => {
       pipesConsumer as any,
       guardsContextCreator as any,
       guardsConsumer as any,
-      new InterceptorsContextCreator(new NestContainer()) as any,
-      new InterceptorsConsumer() as any,
+      new InterceptorsContextCreator(
+        new NestContainer(),
+        applicationConfig,
+      ) as any,
+      interceptorsConsumer as any,
     );
 
     instance = new Test();
@@ -94,6 +103,24 @@ describe('WsContextCreator', () => {
       contextCreator.create(instance, instance.test, module, 'create');
       expect(guardsCreateSpy.calledWith(instance, instance.test, module)).to.be
         .true;
+    });
+    it('should include global interceptors from application config', async () => {
+      const interceptor = new WsTimeoutInterceptor({ messageTimeout: 100 });
+      const interceptSpy = sinon.spy(interceptorsConsumer, 'intercept');
+
+      applicationConfig.useGlobalInterceptors(interceptor);
+      sinon.stub(guardsContextCreator, 'create').returns([]);
+
+      const proxy = contextCreator.create(
+        instance,
+        instance.test,
+        module,
+        'test',
+      );
+      await proxy(null, 'test');
+
+      expect(interceptSpy.called).to.be.true;
+      expect(interceptSpy.firstCall.args[0]).to.include(interceptor);
     });
     describe('when proxy called', () => {
       it('should call guards consumer `tryActivate`', async () => {
@@ -172,7 +199,11 @@ describe('WsContextCreator', () => {
       const expectedValues = [
         { index: 0, type: WsParamtype.SOCKET, data: 'test' },
         { index: 2, type: WsParamtype.PAYLOAD, data: 'test' },
-        { index: 3, type: `key${CUSTOM_ROUTE_ARGS_METADATA}`, data: 'custom' },
+        {
+          index: 3,
+          type: `key${CUSTOM_ROUTE_ARGS_METADATA}`,
+          data: 'custom',
+        },
       ];
       expect(values[0]).to.deep.include(expectedValues[0]);
       expect(values[1]).to.deep.include(expectedValues[1]);

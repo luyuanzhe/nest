@@ -1,104 +1,216 @@
-diff --git a/packages/websockets/index.ts b/packages/websockets/index.ts
-index c831a18b2..4569b5df9 100644
---- a/packages/websockets/index.ts
-+++ b/packages/websockets/index.ts
-@@ -10,5 +10,6 @@ export * from './adapters';
- export * from './decorators';
- export * from './errors';
- export * from './exceptions';
-+export * from './interceptors';
- export { MessageMappingProperties } from './gateway-metadata-explorer';
- export * from './interfaces';
-diff --git a/packages/websockets/web-sockets-controller.ts b/packages/websockets/web-sockets-controller.ts
-index 37e21efef..6a2d9caa3 100644
---- a/packages/websockets/web-sockets-controller.ts
-+++ b/packages/websockets/web-sockets-controller.ts
+diff --git a/1.3.1.patch b/1.3.1.patch
+index 9a18342df..e69de29bb 100644
+--- a/1.3.1.patch
++++ b/1.3.1.patch
+@@ -1,104 +0,0 @@
+-diff --git a/packages/websockets/index.ts b/packages/websockets/index.ts
+-index c831a18b2..4569b5df9 100644
+---- a/packages/websockets/index.ts
+-+++ b/packages/websockets/index.ts
+-@@ -10,5 +10,6 @@ export * from './adapters';
+- export * from './decorators';
+- export * from './errors';
+- export * from './exceptions';
+-+export * from './interceptors';
+- export { MessageMappingProperties } from './gateway-metadata-explorer';
+- export * from './interfaces';
+-diff --git a/packages/websockets/web-sockets-controller.ts b/packages/websockets/web-sockets-controller.ts
+-index 37e21efef..6a2d9caa3 100644
+---- a/packages/websockets/web-sockets-controller.ts
+-+++ b/packages/websockets/web-sockets-controller.ts
+-@@ -1,3 +1,4 @@
+-+import { isFunction } from '@nestjs/common/utils/shared.utils';
+- import { NestApplicationContextOptions } from '@nestjs/common/interfaces/nest-application-context-options.interface';
+- import { Type } from '@nestjs/common/interfaces/type.interface';
+- import { Logger } from '@nestjs/common/services/logger.service';
+-@@ -23,6 +24,7 @@ import { GatewayMetadata } from './interfaces/gateway-metadata.interface';
+- import { NestGateway } from './interfaces/nest-gateway.interface';
+- import { ServerAndEventStreamsHost } from './interfaces/server-and-event-streams-host.interface';
+- import { WebsocketEntrypointMetadata } from './interfaces/websockets-entrypoint-metadata.interface';
+-+import { WsTimeoutInterceptor } from './interceptors';
+- import { SocketServerProvider } from './socket-server-provider';
+- import { compareElementAt } from './utils/compare-element.util';
+- 
+-@@ -153,11 +155,16 @@ export class WebSocketsController {
+- 
+-   public subscribeConnectionEvent(instance: NestGateway, event: Subject<any>) {
+-     if (instance.handleConnection) {
+-+      const timeoutInterceptor = this.getGlobalWsTimeoutInterceptor();
+-       event
+-         .pipe(
+--          distinctUntilChanged((prev, curr) => compareElementAt(prev, curr, 0)),
+-+          distinctUntilChanged((prev: unknown[], curr: unknown[]) =>
+-+            compareElementAt(prev, curr, 0),
+-+          ),
+-         )
+--        .subscribe((args: unknown[]) => instance.handleConnection!(...args));
+-+        .subscribe((args: unknown[]) =>
+-+          this.handleConnection(instance, args, timeoutInterceptor),
+-+        );
+-     }
+-   }
+- 
+-@@ -224,7 +231,55 @@ export class WebSocketsController {
+-     });
+-   }
+- 
+--  private assignServerToProperties<T = any>(
+-+  public getGlobalWsTimeoutInterceptor(): WsTimeoutInterceptor | undefined {
+-+    const interceptors = this.config.getGlobalInterceptors();
+-+
+-+    for (let index = interceptors.length - 1; index >= 0; index--) {
+-+      const interceptor = interceptors[index];
+-+      if (interceptor instanceof WsTimeoutInterceptor) {
+-+        return interceptor;
+-+      }
+-+    }
+-+
+-+    return undefined;
+-+  }
+-+
+-+  public handleConnection(
+-+    instance: NestGateway,
+-+    args: unknown[],
+-+    timeoutInterceptor?: WsTimeoutInterceptor,
+-+  ) {
+-+    const result = instance.handleConnection?.(...args);
+-+    const timeoutMs = timeoutInterceptor?.getConnectionTimeout();
+-+
+-+    if (!timeoutMs || !timeoutInterceptor) {
+-+      return result;
+-+    }
+-+
+-+    const completionPromise = this.toCompletionPromise(result);
+-+    if (!completionPromise) {
+-+      return result;
+-+    }
+-+
+-+    const [client] = args;
+-+    const timeoutId = setTimeout(
+-+      () => timeoutInterceptor.handleTimeout(client),
+-+      timeoutMs,
+-+    );
+-+
+-+    void completionPromise.finally(() => clearTimeout(timeoutId));
+-+    return result;
+-+  }
+-+
+-+  public toCompletionPromise(result: unknown): Promise<void> | undefined {
+-+    if (!isFunction((result as Promise<void> | undefined)?.then)) {
+-+      return undefined;
+-+    }
+-+
+-+    return (result as Promise<void>).then(() => undefined);
+-+  }
+-+
+-+  private assignServerToProperties(
+-     instance: NestGateway,
+-     server: object,
+-   ) {
+diff --git a/packages/websockets/socket-module.ts b/packages/websockets/socket-module.ts
+index c0fe93f93..ebf13b4ae 100644
+--- a/packages/websockets/socket-module.ts
++++ b/packages/websockets/socket-module.ts
+@@ -143,7 +143,7 @@ export class SocketModule<
+       new PipesConsumer(),
+       new GuardsContextCreator(container),
+       new GuardsConsumer(),
+-      new InterceptorsContextCreator(container),
++      new InterceptorsContextCreator(container, this.applicationConfig),
+       new InterceptorsConsumer(),
+     );
+   }
+diff --git a/packages/websockets/test/context/ws-context-creator.spec.ts b/packages/websockets/test/context/ws-context-creator.spec.ts
+index 37b0b2835..81d0500ee 100644
+--- a/packages/websockets/test/context/ws-context-creator.spec.ts
++++ b/packages/websockets/test/context/ws-context-creator.spec.ts
 @@ -1,3 +1,4 @@
-+import { isFunction } from '@nestjs/common/utils/shared.utils';
- import { NestApplicationContextOptions } from '@nestjs/common/interfaces/nest-application-context-options.interface';
- import { Type } from '@nestjs/common/interfaces/type.interface';
- import { Logger } from '@nestjs/common/services/logger.service';
-@@ -23,6 +24,7 @@ import { GatewayMetadata } from './interfaces/gateway-metadata.interface';
- import { NestGateway } from './interfaces/nest-gateway.interface';
- import { ServerAndEventStreamsHost } from './interfaces/server-and-event-streams-host.interface';
- import { WebsocketEntrypointMetadata } from './interfaces/websockets-entrypoint-metadata.interface';
-+import { WsTimeoutInterceptor } from './interceptors';
- import { SocketServerProvider } from './socket-server-provider';
- import { compareElementAt } from './utils/compare-element.util';
++import { ApplicationConfig } from '@nestjs/core/application-config';
+ import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
+ import { expect } from 'chai';
+ import { of } from 'rxjs';
+@@ -17,6 +18,7 @@ import { WsProxy } from '../../context/ws-proxy';
+ import { WsParamtype } from '../../enums/ws-paramtype.enum';
+ import { WsParamsFactory } from '../../factories/ws-params-factory';
+ import { WsException } from '../../index';
++import { WsTimeoutInterceptor } from '../../interceptors';
  
-@@ -153,11 +155,16 @@ export class WebSocketsController {
+ @Injectable()
+ class TestGuard {
+@@ -38,6 +40,8 @@ describe('WsContextCreator', () => {
+   let pipesConsumer: PipesConsumer;
+   let guardsContextCreator: GuardsContextCreator;
+   let guardsConsumer: GuardsConsumer;
++  let interceptorsConsumer: InterceptorsConsumer;
++  let applicationConfig: ApplicationConfig;
+   let instance: Test;
+   let module: string;
  
-   public subscribeConnectionEvent(instance: NestGateway, event: Subject<any>) {
-     if (instance.handleConnection) {
-+      const timeoutInterceptor = this.getGlobalWsTimeoutInterceptor();
-       event
-         .pipe(
--          distinctUntilChanged((prev, curr) => compareElementAt(prev, curr, 0)),
-+          distinctUntilChanged((prev: unknown[], curr: unknown[]) =>
-+            compareElementAt(prev, curr, 0),
-+          ),
-         )
--        .subscribe((args: unknown[]) => instance.handleConnection!(...args));
-+        .subscribe((args: unknown[]) =>
-+          this.handleConnection(instance, args, timeoutInterceptor),
-+        );
-     }
-   }
+@@ -54,6 +58,7 @@ describe('WsContextCreator', () => {
+     wsProxy = new WsProxy();
+     sinon.stub(wsProxy, 'create').callsFake(a => a);
  
-@@ -224,7 +231,55 @@ export class WebSocketsController {
++    applicationConfig = new ApplicationConfig();
+     exceptionFiltersContext = new ExceptionFiltersContext(
+       new NestContainer() as any,
+     );
+@@ -61,6 +66,7 @@ describe('WsContextCreator', () => {
+     pipesConsumer = new PipesConsumer();
+     guardsContextCreator = new GuardsContextCreator(new NestContainer());
+     guardsConsumer = new GuardsConsumer();
++    interceptorsConsumer = new InterceptorsConsumer();
+     contextCreator = new WsContextCreator(
+       wsProxy,
+       exceptionFiltersContext,
+@@ -68,8 +74,11 @@ describe('WsContextCreator', () => {
+       pipesConsumer as any,
+       guardsContextCreator as any,
+       guardsConsumer as any,
+-      new InterceptorsContextCreator(new NestContainer()) as any,
+-      new InterceptorsConsumer() as any,
++      new InterceptorsContextCreator(
++        new NestContainer(),
++        applicationConfig,
++      ) as any,
++      interceptorsConsumer as any,
+     );
+ 
+     instance = new Test();
+@@ -95,6 +104,24 @@ describe('WsContextCreator', () => {
+       expect(guardsCreateSpy.calledWith(instance, instance.test, module)).to.be
+         .true;
      });
-   }
- 
--  private assignServerToProperties<T = any>(
-+  public getGlobalWsTimeoutInterceptor(): WsTimeoutInterceptor | undefined {
-+    const interceptors = this.config.getGlobalInterceptors();
++    it('should include global interceptors from application config', async () => {
++      const interceptor = new WsTimeoutInterceptor({ messageTimeout: 100 });
++      const interceptSpy = sinon.spy(interceptorsConsumer, 'intercept');
 +
-+    for (let index = interceptors.length - 1; index >= 0; index--) {
-+      const interceptor = interceptors[index];
-+      if (interceptor instanceof WsTimeoutInterceptor) {
-+        return interceptor;
-+      }
-+    }
++      applicationConfig.useGlobalInterceptors(interceptor);
++      sinon.stub(guardsContextCreator, 'create').returns([]);
 +
-+    return undefined;
-+  }
++      const proxy = contextCreator.create(
++        instance,
++        instance.test,
++        module,
++        'test',
++      );
++      await proxy(null, 'test');
 +
-+  public handleConnection(
-+    instance: NestGateway,
-+    args: unknown[],
-+    timeoutInterceptor?: WsTimeoutInterceptor,
-+  ) {
-+    const result = instance.handleConnection?.(...args);
-+    const timeoutMs = timeoutInterceptor?.getConnectionTimeout();
-+
-+    if (!timeoutMs || !timeoutInterceptor) {
-+      return result;
-+    }
-+
-+    const completionPromise = this.toCompletionPromise(result);
-+    if (!completionPromise) {
-+      return result;
-+    }
-+
-+    const [client] = args;
-+    const timeoutId = setTimeout(
-+      () => timeoutInterceptor.handleTimeout(client),
-+      timeoutMs,
-+    );
-+
-+    void completionPromise.finally(() => clearTimeout(timeoutId));
-+    return result;
-+  }
-+
-+  public toCompletionPromise(result: unknown): Promise<void> | undefined {
-+    if (!isFunction((result as Promise<void> | undefined)?.then)) {
-+      return undefined;
-+    }
-+
-+    return (result as Promise<void>).then(() => undefined);
-+  }
-+
-+  private assignServerToProperties(
-     instance: NestGateway,
-     server: object,
-   ) {
++      expect(interceptSpy.called).to.be.true;
++      expect(interceptSpy.firstCall.args[0]).to.include(interceptor);
++    });
+     describe('when proxy called', () => {
+       it('should call guards consumer `tryActivate`', async () => {
+         const tryActivateSpy = sinon.spy(guardsConsumer, 'tryActivate');
+@@ -172,7 +199,11 @@ describe('WsContextCreator', () => {
+       const expectedValues = [
+         { index: 0, type: WsParamtype.SOCKET, data: 'test' },
+         { index: 2, type: WsParamtype.PAYLOAD, data: 'test' },
+-        { index: 3, type: `key${CUSTOM_ROUTE_ARGS_METADATA}`, data: 'custom' },
++        {
++          index: 3,
++          type: `key${CUSTOM_ROUTE_ARGS_METADATA}`,
++          data: 'custom',
++        },
+       ];
+       expect(values[0]).to.deep.include(expectedValues[0]);
+       expect(values[1]).to.deep.include(expectedValues[1]);
