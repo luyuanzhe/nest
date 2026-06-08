@@ -1,48 +1,21 @@
 import { Injectable } from '../decorators/core/injectable.decorator';
-import { HttpStatus } from '../enums/http-status.enum';
-import { PipeTransform } from '../interfaces/features/pipe-transform.interface';
-import {
-  ErrorHttpStatusCode,
-  HttpErrorByCode,
-} from '../utils/http-error-by-code.util';
 import { isNil } from '../utils/shared.utils';
+import { ParsePipeBase, ParsePipeBaseOptions } from './parse-pipe.base';
 
-export interface ParseDatePipeOptions {
-  /**
-   * If true, the pipe will return null or undefined if the value is not provided
-   * @default false
-   */
-  optional?: boolean;
+export interface ParseDatePipeOptions extends ParsePipeBaseOptions {
   /**
    * Default value for the date
    */
   default?: () => Date;
-  /**
-   * The HTTP status code to be used in the response when the validation fails.
-   */
-  errorHttpStatusCode?: ErrorHttpStatusCode;
-  /**
-   * A factory function that returns an exception object to be thrown
-   * if validation fails.
-   * @param error Error message
-   * @returns The exception object
-   */
-  exceptionFactory?: (error: string) => any;
 }
 
 @Injectable()
-export class ParseDatePipe implements PipeTransform<
-  string | number | undefined | null
+export class ParseDatePipe extends ParsePipeBase<
+  string | number | undefined | null,
+  Date | null | undefined
 > {
-  protected exceptionFactory: (error: string) => any;
-
   constructor(private readonly options: ParseDatePipeOptions = {}) {
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+    super(options);
   }
 
   /**
