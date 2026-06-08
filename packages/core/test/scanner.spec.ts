@@ -1,4 +1,4 @@
-import { Catch, Injectable } from '@nestjs/common';
+import { Catch, forwardRef, Inject, Injectable } from '@nestjs/common';
 import { expect } from 'chai';
 import * as sinon from 'sinon';
 import { GUARDS_METADATA } from '../../common/constants';
@@ -8,6 +8,7 @@ import { Module } from '../../common/decorators/modules/module.decorator';
 import { Scope } from '../../common/interfaces';
 import { ApplicationConfig } from '../application-config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '../constants';
+import { CircularDependencyException } from '../errors/exceptions/circular-dependency.exception';
 import { InvalidClassModuleException } from '../errors/exceptions/invalid-class-module.exception';
 import { InvalidModuleException } from '../errors/exceptions/invalid-module.exception';
 import { UndefinedModuleException } from '../errors/exceptions/undefined-module.exception';
@@ -114,6 +115,76 @@ describe('DependenciesScanner', () => {
       .once();
     await scanner.scan(TestModule);
     expectation.verify();
+  });
+
+  describe('static circular dependency precheck', () => {
+    it('should throw before instance loading when providers form a circular dependency', async () => {
+      const staticCycleAToken = 'STATIC_CYCLE_A';
+      const staticCycleBToken = 'STATIC_CYCLE_B';
+
+      @Injectable()
+      class StaticCycleA {
+        constructor(@Inject(staticCycleBToken) public readonly dep: unknown) {}
+      }
+
+      @Injectable()
+      class StaticCycleB {
+        constructor(@Inject(staticCycleAToken) public readonly dep: unknown) {}
+      }
+
+      @Module({
+        providers: [
+          {
+            provide: staticCycleAToken,
+            useClass: StaticCycleA,
+          },
+          {
+            provide: staticCycleBToken,
+            useClass: StaticCycleB,
+          },
+        ],
+      })
+      class StaticCycleModule {}
+
+      await expect(scanner.scan(StaticCycleModule)).to.be.rejectedWith(
+        CircularDependencyException,
+        /STATIC_CYCLE_A.*STATIC_CYCLE_B.*STATIC_CYCLE_A/,
+      );
+    });
+
+    it('should ignore dependencies declared with forwardRef()', async () => {
+      const forwardCycleAToken = 'FORWARD_CYCLE_A';
+      const forwardCycleBToken = 'FORWARD_CYCLE_B';
+
+      @Injectable()
+      class ForwardCycleA {
+        constructor(
+          @Inject(forwardRef(() => forwardCycleBToken))
+          public readonly dep: unknown,
+        ) {}
+      }
+
+      @Injectable()
+      class ForwardCycleB {
+        constructor(@Inject(forwardCycleAToken) public readonly dep: unknown) {}
+      }
+
+      @Module({
+        providers: [
+          {
+            provide: forwardCycleAToken,
+            useClass: ForwardCycleA,
+          },
+          {
+            provide: forwardCycleBToken,
+            useClass: ForwardCycleB,
+          },
+        ],
+      })
+      class ForwardCycleModule {}
+
+      await expect(scanner.scan(ForwardCycleModule)).to.not.be.rejected;
+    });
   });
 
   describe('when there is modules overrides', () => {

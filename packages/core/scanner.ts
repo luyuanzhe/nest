@@ -1,4 +1,9 @@
-import { DynamicModule, ForwardReference, Provider } from '@nestjs/common';
+import {
+  DynamicModule,
+  ForwardReference,
+  OptionalFactoryDependency,
+  Provider,
+} from '@nestjs/common';
 import {
   CATCH_WATERMARK,
   CONTROLLER_WATERMARK,
@@ -9,8 +14,11 @@ import {
   INJECTABLE_WATERMARK,
   INTERCEPTORS_METADATA,
   MODULE_METADATA,
+  PARAMTYPES_METADATA,
   PIPES_METADATA,
+  PROPERTY_DEPS_METADATA,
   ROUTE_ARGS_METADATA,
+  SELF_DECLARED_DEPS_METADATA,
 } from '@nestjs/common/constants';
 import {
   CanActivate,
@@ -93,6 +101,7 @@ export class DependenciesScanner {
       overrides: options?.overrides,
     });
     await this.scanModulesForDependencies();
+    this.inspectForStaticCircularDependencies();
     this.addScopedEnhancersMetadata();
 
     // Modules distance calculation should be done after all modules are scanned
@@ -612,6 +621,217 @@ export class DependenciesScanner {
       this.isForwardReference(newModule) ? newModule.forwardRef() : newModule,
       scope,
     );
+  }
+
+  private inspectForStaticCircularDependencies(
+    modules: Map<string, Module> = this.container.getModules(),
+  ) {
+    const providers = [...modules.values()].flatMap(moduleRef =>
+      Array.from(moduleRef.providers.values()),
+    );
+    const visited = new Set<string>();
+    const active = new Set<string>();
+    const stack: InstanceWrapper[] = [];
+    const stackIndexes = new Map<string, number>();
+    const dependencies = new Map<string, InstanceWrapper[]>();
+
+    providers.forEach(wrapper => {
+      dependencies.set(wrapper.id, this.getStaticProviderDependencies(wrapper));
+    });
+
+    const visit = (wrapper: InstanceWrapper) => {
+      if (visited.has(wrapper.id)) {
+        return;
+      }
+      active.add(wrapper.id);
+      stackIndexes.set(wrapper.id, stack.length);
+      stack.push(wrapper);
+
+      for (const dependency of dependencies.get(wrapper.id) || []) {
+        if (visited.has(dependency.id)) {
+          continue;
+        }
+        if (active.has(dependency.id)) {
+          const cycleStartIndex = stackIndexes.get(dependency.id) ?? 0;
+          const cyclePath = stack.slice(cycleStartIndex).concat(dependency);
+          throw new CircularDependencyException(
+            this.formatStaticCyclePath(cyclePath),
+          );
+        }
+        visit(dependency);
+      }
+
+      active.delete(wrapper.id);
+      stackIndexes.delete(wrapper.id);
+      stack.pop();
+      visited.add(wrapper.id);
+    };
+
+    providers.forEach(visit);
+  }
+
+  private getStaticProviderDependencies(
+    wrapper: InstanceWrapper,
+  ): InstanceWrapper[] {
+    const moduleRef = wrapper.host;
+    if (!moduleRef) {
+      return [];
+    }
+    const dependencies = [
+      ...this.getStaticConstructorDependencies(wrapper),
+      ...this.getStaticPropertyDependencies(wrapper),
+    ];
+    const relatedWrappers = new Map<string, InstanceWrapper>();
+
+    dependencies.forEach(({ token, isForwardRef }) => {
+      if (isForwardRef || isUndefined(token)) {
+        return;
+      }
+      const dependencyWrapper = this.lookupStaticProviderWrapper(
+        moduleRef,
+        token,
+      );
+      if (!dependencyWrapper || dependencyWrapper.id === wrapper.id) {
+        return;
+      }
+      relatedWrappers.set(dependencyWrapper.id, dependencyWrapper);
+    });
+
+    return [...relatedWrappers.values()];
+  }
+
+  private getStaticConstructorDependencies(
+    wrapper: InstanceWrapper,
+  ): Array<{ token: InjectionToken | undefined; isForwardRef: boolean }> {
+    if (isNil(wrapper.metatype)) {
+      return [];
+    }
+    if (!isNil(wrapper.inject)) {
+      return (wrapper.inject || []).map(dependency => {
+        const token = this.isOptionalFactoryDependency(dependency)
+          ? dependency.token
+          : dependency;
+        return this.unwrapStaticDependencyToken(token);
+      });
+    }
+    const paramtypes = [
+      ...(Reflect.getMetadata(PARAMTYPES_METADATA, wrapper.metatype) || []),
+    ];
+    const selfParams =
+      Reflect.getMetadata(SELF_DECLARED_DEPS_METADATA, wrapper.metatype) || [];
+
+    selfParams.forEach(({ index, param }: { index: number; param: unknown }) => {
+      paramtypes[index] = param;
+    });
+
+    return Array.from(paramtypes).map(param =>
+      this.unwrapStaticDependencyToken(param),
+    );
+  }
+
+  private getStaticPropertyDependencies(
+    wrapper: InstanceWrapper,
+  ): Array<{ token: InjectionToken | undefined; isForwardRef: boolean }> {
+    if (isNil(wrapper.metatype) || !isNil(wrapper.inject)) {
+      return [];
+    }
+    const properties =
+      Reflect.getMetadata(PROPERTY_DEPS_METADATA, wrapper.metatype) || [];
+
+    return properties.map((item: { type: unknown }) =>
+      this.unwrapStaticDependencyToken(item.type),
+    );
+  }
+
+  private lookupStaticProviderWrapper(
+    moduleRef: Module,
+    token: InjectionToken,
+  ): InstanceWrapper | undefined {
+    if (moduleRef.providers.has(token)) {
+      return moduleRef.providers.get(token);
+    }
+    return this.lookupStaticProviderWrapperInImports(
+      moduleRef,
+      token,
+      new Set<string>(),
+    );
+  }
+
+  private lookupStaticProviderWrapperInImports(
+    moduleRef: Module,
+    token: InjectionToken,
+    moduleRegistry: Set<string>,
+    isTraversing = false,
+  ): InstanceWrapper | undefined {
+    const identity = (item: Module | undefined) => item;
+    let children = [...moduleRef.imports.values()].filter(identity);
+
+    if (isTraversing) {
+      children = children.filter(child => moduleRef.exports.has(child.metatype));
+    }
+
+    for (const relatedModule of children) {
+      if (moduleRegistry.has(relatedModule.id)) {
+        continue;
+      }
+      moduleRegistry.add(relatedModule.id);
+
+      if (
+        relatedModule.exports.has(token) &&
+        relatedModule.providers.has(token)
+      ) {
+        return relatedModule.providers.get(token);
+      }
+      const instanceWrapper = this.lookupStaticProviderWrapperInImports(
+        relatedModule,
+        token,
+        moduleRegistry,
+        true,
+      );
+      if (instanceWrapper) {
+        return instanceWrapper;
+      }
+    }
+  }
+
+  private unwrapStaticDependencyToken(
+    token: unknown,
+  ): { token: InjectionToken | undefined; isForwardRef: boolean } {
+    if (token && typeof token === 'object' && 'forwardRef' in token) {
+      return {
+        token: (token as ForwardReference).forwardRef(),
+        isForwardRef: true,
+      };
+    }
+    return {
+      token: token as InjectionToken | undefined,
+      isForwardRef: false,
+    };
+  }
+
+  private isOptionalFactoryDependency(
+    value: InjectionToken | OptionalFactoryDependency,
+  ): value is OptionalFactoryDependency {
+    return (
+      !isUndefined((value as OptionalFactoryDependency).token) &&
+      !isUndefined((value as OptionalFactoryDependency).optional) &&
+      !(value as any).prototype
+    );
+  }
+
+  private formatStaticCyclePath(path: InstanceWrapper[]): string {
+    return `static dependency graph: ${path
+      .map(wrapper => this.stringifyStaticDependencyWrapper(wrapper))
+      .join(' -> ')}`;
+  }
+
+  private stringifyStaticDependencyWrapper(wrapper: InstanceWrapper): string {
+    const token = wrapper.token || wrapper.name;
+    const tokenName = isFunction(token)
+      ? token.name
+      : token?.toString?.() ?? 'unknown';
+    const moduleName = wrapper.host?.name ?? 'unknown';
+    return `"${tokenName}" (${moduleName})`;
   }
 
   public reflectMetadata<T = any>(
