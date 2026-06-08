@@ -1,37 +1,12 @@
 import { Injectable } from '../decorators/core/injectable.decorator';
 import { Optional } from '../decorators/core/optional.decorator';
-import { HttpStatus } from '../enums/http-status.enum';
-import {
-  ArgumentMetadata,
-  PipeTransform,
-} from '../interfaces/features/pipe-transform.interface';
-import {
-  ErrorHttpStatusCode,
-  HttpErrorByCode,
-} from '../utils/http-error-by-code.util';
-import { isNil } from '../utils/shared.utils';
+import { ArgumentMetadata } from '../interfaces/features/pipe-transform.interface';
+import { ParsePipeBase, ParsePipeOptions } from './parse-pipe-base';
 
 /**
  * @publicApi
  */
-export interface ParseIntPipeOptions {
-  /**
-   * The HTTP status code to be used in the response when the validation fails.
-   */
-  errorHttpStatusCode?: ErrorHttpStatusCode;
-  /**
-   * A factory function that returns an exception object to be thrown
-   * if validation fails.
-   * @param error Error message
-   * @returns The exception object
-   */
-  exceptionFactory?: (error: string) => any;
-  /**
-   * If true, the pipe will return null or undefined if the value is not provided
-   * @default false
-   */
-  optional?: boolean;
-}
+export interface ParseIntPipeOptions extends ParsePipeOptions {}
 
 /**
  * Defines the built-in ParseInt Pipe
@@ -41,17 +16,9 @@ export interface ParseIntPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseIntPipe implements PipeTransform<string> {
-  protected exceptionFactory: (error: string) => any;
-
+export class ParseIntPipe extends ParsePipeBase<string, number> {
   constructor(@Optional() protected readonly options?: ParseIntPipeOptions) {
-    options = options || {};
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+    super(options);
   }
 
   /**
@@ -62,8 +29,9 @@ export class ParseIntPipe implements PipeTransform<string> {
    * @param metadata contains metadata about the currently processed route argument
    */
   async transform(value: string, metadata: ArgumentMetadata): Promise<number> {
-    if (isNil(value) && this.options?.optional) {
-      return value;
+    const nilResult = this.returnIfNil(value);
+    if (nilResult !== false) {
+      return nilResult;
     }
     if (!this.isNumeric(value)) {
       throw this.exceptionFactory(

@@ -6,5 +6,6 @@ export * from './parse-date.pipe';
 export * from './parse-enum.pipe';
 export * from './parse-float.pipe';
 export * from './parse-int.pipe';
+export * from './parse-pipe-base';
 export * from './parse-uuid.pipe';
 export * from './validation.pipe';
