@@ -8,6 +8,7 @@ import {
 } from '../interfaces/features/pipe-transform.interface';
 import { HttpErrorByCode } from '../utils/http-error-by-code.util';
 import { isNil, isString, isUndefined } from '../utils/shared.utils';
+import { ParsePipe } from './parse.pipe';
 import { ValidationPipe, ValidationPipeOptions } from './validation.pipe';
 
 const VALIDATION_ERROR_MESSAGE = 'Validation failed (parsable array expected)';
@@ -51,22 +52,16 @@ export interface ParseArrayOptions extends Omit<
  * @publicApi
  */
 @Injectable()
-export class ParseArrayPipe implements PipeTransform {
+export class ParseArrayPipe extends ParsePipe implements PipeTransform {
   protected readonly validationPipe: ValidationPipe;
-  protected exceptionFactory: (error: string) => any;
 
   constructor(@Optional() protected readonly options: ParseArrayOptions = {}) {
+    super(options);
     this.validationPipe = new ValidationPipe({
       transform: true,
       validateCustomDecorators: true,
       ...options,
     });
-
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
   }
 
   /**

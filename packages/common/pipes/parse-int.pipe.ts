@@ -10,6 +10,7 @@ import {
   HttpErrorByCode,
 } from '../utils/http-error-by-code.util';
 import { isNil } from '../utils/shared.utils';
+import { ParsePipe } from './parse.pipe';
 
 /**
  * @publicApi
@@ -41,17 +42,9 @@ export interface ParseIntPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseIntPipe implements PipeTransform<string> {
-  protected exceptionFactory: (error: string) => any;
-
+export class ParseIntPipe extends ParsePipe implements PipeTransform<string> {
   constructor(@Optional() protected readonly options?: ParseIntPipeOptions) {
-    options = options || {};
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+    super(options);
   }
 
   /**

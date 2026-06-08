@@ -10,6 +10,7 @@ import {
   HttpErrorByCode,
 } from '../utils/http-error-by-code.util';
 import { isNil, isString } from '../utils/shared.utils';
+import { ParsePipe } from './parse.pipe';
 
 /**
  * @publicApi
@@ -45,7 +46,7 @@ export interface ParseUUIDPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseUUIDPipe implements PipeTransform<string> {
+export class ParseUUIDPipe extends ParsePipe implements PipeTransform<string> {
   protected static uuidRegExps = {
     3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
     4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
@@ -54,20 +55,13 @@ export class ParseUUIDPipe implements PipeTransform<string> {
     all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
   };
   private readonly version: '3' | '4' | '5' | '7' | undefined;
-  protected exceptionFactory: (errors: string) => any;
 
   constructor(@Optional() protected readonly options?: ParseUUIDPipeOptions) {
+    super(options);
     options = options || {};
-    const {
-      exceptionFactory,
-      errorHttpStatusCode = HttpStatus.BAD_REQUEST,
-      version,
-    } = options;
+    const { version } = options;
 
     this.version = version;
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
   }
 
   async transform(value: string, metadata: ArgumentMetadata): Promise<string> {

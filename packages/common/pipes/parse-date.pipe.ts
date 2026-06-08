@@ -6,6 +6,7 @@ import {
   HttpErrorByCode,
 } from '../utils/http-error-by-code.util';
 import { isNil } from '../utils/shared.utils';
+import { ParsePipe } from './parse.pipe';
 
 export interface ParseDatePipeOptions {
   /**
@@ -31,18 +32,11 @@ export interface ParseDatePipeOptions {
 }
 
 @Injectable()
-export class ParseDatePipe implements PipeTransform<
+export class ParseDatePipe extends ParsePipe implements PipeTransform<
   string | number | undefined | null
 > {
-  protected exceptionFactory: (error: string) => any;
-
   constructor(private readonly options: ParseDatePipeOptions = {}) {
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+    super(options);
   }
 
   /**

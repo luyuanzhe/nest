@@ -1,0 +1,298 @@
+diff --git a/packages/common/pipes/file/parse-file.pipe.ts b/packages/common/pipes/file/parse-file.pipe.ts
+index d2ea60e50..1d6a8697b 100644
+--- a/packages/common/pipes/file/parse-file.pipe.ts
++++ b/packages/common/pipes/file/parse-file.pipe.ts
+@@ -3,6 +3,7 @@ import { HttpStatus } from '../../enums';
+ import { PipeTransform } from '../../interfaces/features/pipe-transform.interface';
+ import { HttpErrorByCode } from '../../utils/http-error-by-code.util';
+ import { isEmpty, isObject, isUndefined } from '../../utils/shared.utils';
++import { ParsePipe } from '../parse.pipe';
+ import { FileValidator } from './file-validator.interface';
+ import { ParseFileOptions } from './parse-file-options.interface';
+ 
+@@ -17,23 +18,17 @@ import { ParseFileOptions } from './parse-file-options.interface';
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseFilePipe implements PipeTransform<any> {
+-  protected exceptionFactory: (error: string) => any;
++export class ParseFilePipe extends ParsePipe implements PipeTransform<any> {
+   private readonly validators: FileValidator[];
+   private readonly fileIsRequired: boolean;
+ 
+   constructor(@Optional() options: ParseFileOptions = {}) {
++    super(options);
+     const {
+-      exceptionFactory,
+-      errorHttpStatusCode = HttpStatus.BAD_REQUEST,
+       validators = [],
+       fileIsRequired,
+     } = options;
+ 
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+-
+     this.validators = validators;
+     this.fileIsRequired = fileIsRequired ?? true;
+   }
+diff --git a/packages/common/pipes/index.ts b/packages/common/pipes/index.ts
+index f416b9467..6f8d4497d 100644
+--- a/packages/common/pipes/index.ts
++++ b/packages/common/pipes/index.ts
+@@ -1,3 +1,4 @@
++export * from './parse.pipe';
+ export * from './default-value.pipe';
+ export * from './file';
+ export * from './parse-array.pipe';
+diff --git a/packages/common/pipes/parse-array.pipe.ts b/packages/common/pipes/parse-array.pipe.ts
+index 5bc5bd029..c2257d01a 100644
+--- a/packages/common/pipes/parse-array.pipe.ts
++++ b/packages/common/pipes/parse-array.pipe.ts
+@@ -8,6 +8,7 @@ import {
+ } from '../interfaces/features/pipe-transform.interface';
+ import { HttpErrorByCode } from '../utils/http-error-by-code.util';
+ import { isNil, isString, isUndefined } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ import { ValidationPipe, ValidationPipeOptions } from './validation.pipe';
+ 
+ const VALIDATION_ERROR_MESSAGE = 'Validation failed (parsable array expected)';
+@@ -51,22 +52,16 @@ export interface ParseArrayOptions extends Omit<
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseArrayPipe implements PipeTransform {
++export class ParseArrayPipe extends ParsePipe implements PipeTransform {
+   protected readonly validationPipe: ValidationPipe;
+-  protected exceptionFactory: (error: string) => any;
+ 
+   constructor(@Optional() protected readonly options: ParseArrayOptions = {}) {
++    super(options);
+     this.validationPipe = new ValidationPipe({
+       transform: true,
+       validateCustomDecorators: true,
+       ...options,
+     });
+-
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+   }
+ 
+   /**
+diff --git a/packages/common/pipes/parse-bool.pipe.ts b/packages/common/pipes/parse-bool.pipe.ts
+index 177ee7cbe..55aa5fceb 100644
+--- a/packages/common/pipes/parse-bool.pipe.ts
++++ b/packages/common/pipes/parse-bool.pipe.ts
+@@ -10,6 +10,7 @@ import {
+   HttpErrorByCode,
+ } from '../utils/http-error-by-code.util';
+ import { isNil } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -41,19 +42,12 @@ export interface ParseBoolPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseBoolPipe implements PipeTransform<
++export class ParseBoolPipe extends ParsePipe implements PipeTransform<
+   string | boolean,
+   Promise<boolean>
+ > {
+-  protected exceptionFactory: (error: string) => any;
+-
+   constructor(@Optional() protected readonly options?: ParseBoolPipeOptions) {
+-    options = options || {};
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++    super(options);
+   }
+ 
+   /**
+diff --git a/packages/common/pipes/parse-date.pipe.ts b/packages/common/pipes/parse-date.pipe.ts
+index 4dc1d9860..e0bce8ef8 100644
+--- a/packages/common/pipes/parse-date.pipe.ts
++++ b/packages/common/pipes/parse-date.pipe.ts
+@@ -6,6 +6,7 @@ import {
+   HttpErrorByCode,
+ } from '../utils/http-error-by-code.util';
+ import { isNil } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ 
+ export interface ParseDatePipeOptions {
+   /**
+@@ -31,18 +32,11 @@ export interface ParseDatePipeOptions {
+ }
+ 
+ @Injectable()
+-export class ParseDatePipe implements PipeTransform<
++export class ParseDatePipe extends ParsePipe implements PipeTransform<
+   string | number | undefined | null
+ > {
+-  protected exceptionFactory: (error: string) => any;
+-
+   constructor(private readonly options: ParseDatePipeOptions = {}) {
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++    super(options);
+   }
+ 
+   /**
+diff --git a/packages/common/pipes/parse-enum.pipe.ts b/packages/common/pipes/parse-enum.pipe.ts
+index 47f3c263a..e891af0f1 100644
+--- a/packages/common/pipes/parse-enum.pipe.ts
++++ b/packages/common/pipes/parse-enum.pipe.ts
+@@ -6,6 +6,7 @@ import {
+   HttpErrorByCode,
+ } from '../utils/http-error-by-code.util';
+ import { isNil } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -37,24 +38,17 @@ export interface ParseEnumPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseEnumPipe<T = any> implements PipeTransform<T> {
+-  protected exceptionFactory: (error: string) => any;
++export class ParseEnumPipe<T = any> extends ParsePipe implements PipeTransform<T> {
+   constructor(
+     protected readonly enumType: T,
+     @Optional() protected readonly options?: ParseEnumPipeOptions,
+   ) {
++    super(options);
+     if (!enumType) {
+       throw new Error(
+         `"ParseEnumPipe" requires "enumType" argument specified (to validate input values).`,
+       );
+     }
+-    options = options || {};
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+   }
+ 
+   /**
+diff --git a/packages/common/pipes/parse-float.pipe.ts b/packages/common/pipes/parse-float.pipe.ts
+index 04f5e97e2..92cdf0f0e 100644
+--- a/packages/common/pipes/parse-float.pipe.ts
++++ b/packages/common/pipes/parse-float.pipe.ts
+@@ -6,6 +6,7 @@ import {
+   HttpErrorByCode,
+ } from '../utils/http-error-by-code.util';
+ import { isNil } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -37,17 +38,9 @@ export interface ParseFloatPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseFloatPipe implements PipeTransform<string> {
+-  protected exceptionFactory: (error: string) => any;
+-
++export class ParseFloatPipe extends ParsePipe implements PipeTransform<string> {
+   constructor(@Optional() protected readonly options?: ParseFloatPipeOptions) {
+-    options = options || {};
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++    super(options);
+   }
+ 
+   /**
+diff --git a/packages/common/pipes/parse-int.pipe.ts b/packages/common/pipes/parse-int.pipe.ts
+index d74aa0205..8153dd0fb 100644
+--- a/packages/common/pipes/parse-int.pipe.ts
++++ b/packages/common/pipes/parse-int.pipe.ts
+@@ -10,6 +10,7 @@ import {
+   HttpErrorByCode,
+ } from '../utils/http-error-by-code.util';
+ import { isNil } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -41,17 +42,9 @@ export interface ParseIntPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseIntPipe implements PipeTransform<string> {
+-  protected exceptionFactory: (error: string) => any;
+-
++export class ParseIntPipe extends ParsePipe implements PipeTransform<string> {
+   constructor(@Optional() protected readonly options?: ParseIntPipeOptions) {
+-    options = options || {};
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++    super(options);
+   }
+ 
+   /**
+diff --git a/packages/common/pipes/parse-uuid.pipe.ts b/packages/common/pipes/parse-uuid.pipe.ts
+index 1c67860b9..ce5857b0f 100644
+--- a/packages/common/pipes/parse-uuid.pipe.ts
++++ b/packages/common/pipes/parse-uuid.pipe.ts
+@@ -10,6 +10,7 @@ import {
+   HttpErrorByCode,
+ } from '../utils/http-error-by-code.util';
+ import { isNil, isString } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -45,7 +46,7 @@ export interface ParseUUIDPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseUUIDPipe implements PipeTransform<string> {
++export class ParseUUIDPipe extends ParsePipe implements PipeTransform<string> {
+   protected static uuidRegExps = {
+     3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+     4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+@@ -54,20 +55,13 @@ export class ParseUUIDPipe implements PipeTransform<string> {
+     all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+   };
+   private readonly version: '3' | '4' | '5' | '7' | undefined;
+-  protected exceptionFactory: (errors: string) => any;
+ 
+   constructor(@Optional() protected readonly options?: ParseUUIDPipeOptions) {
++    super(options);
+     options = options || {};
+-    const {
+-      exceptionFactory,
+-      errorHttpStatusCode = HttpStatus.BAD_REQUEST,
+-      version,
+-    } = options;
++    const { version } = options;
+ 
+     this.version = version;
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+   }
+ 
+   async transform(value: string, metadata: ArgumentMetadata): Promise<string> {

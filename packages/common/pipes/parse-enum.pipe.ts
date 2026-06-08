@@ -6,6 +6,7 @@ import {
   HttpErrorByCode,
 } from '../utils/http-error-by-code.util';
 import { isNil } from '../utils/shared.utils';
+import { ParsePipe } from './parse.pipe';
 
 /**
  * @publicApi
@@ -37,24 +38,17 @@ export interface ParseEnumPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseEnumPipe<T = any> implements PipeTransform<T> {
-  protected exceptionFactory: (error: string) => any;
+export class ParseEnumPipe<T = any> extends ParsePipe implements PipeTransform<T> {
   constructor(
     protected readonly enumType: T,
     @Optional() protected readonly options?: ParseEnumPipeOptions,
   ) {
+    super(options);
     if (!enumType) {
       throw new Error(
         `"ParseEnumPipe" requires "enumType" argument specified (to validate input values).`,
       );
     }
-    options = options || {};
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
   }
 
   /**
