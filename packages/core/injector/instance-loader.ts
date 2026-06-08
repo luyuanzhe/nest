@@ -27,6 +27,8 @@ export class InstanceLoader<TInjector extends Injector = Injector> {
   ) {
     this.createPrototypes(modules);
 
+    await this.injector.checkCircularDependencies(modules);
+
     try {
       await this.createInstances(modules);
     } catch (err) {

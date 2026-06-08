@@ -136,6 +136,66 @@ export class Injector {
     }
   }
 
+  public async checkCircularDependencies(modules: Map<string, Module>) {
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+
+    const checkWrapper = async (wrapper: InstanceWrapper, moduleRef: Module) => {
+      if (visiting.has(wrapper.id)) {
+        throw new CircularDependencyException(`"${wrapper.name}"`);
+      }
+      if (visited.has(wrapper.id)) {
+        return;
+      }
+      visiting.add(wrapper.id);
+
+      const [dependencies, optionalDependenciesIds] = wrapper.inject
+        ? this.getFactoryProviderDependencies(wrapper)
+        : this.getClassDependencies(wrapper);
+
+      if (dependencies) {
+        for (let i = 0; i < dependencies.length; i++) {
+          const param = dependencies[i];
+          if (param === INQUIRER) continue;
+          
+          const isForwardRef = typeof param === 'object' && param !== null && 'forwardRef' in param;
+          const token = isForwardRef ? (param as any).forwardRef() : param;
+          
+          try {
+            const depWrapper = await this.lookupComponent(
+              moduleRef.providers,
+              moduleRef,
+              { name: token as any },
+              wrapper,
+              undefined,
+              i,
+            );
+            if (depWrapper && !isForwardRef) {
+              await checkWrapper(depWrapper, depWrapper.host || moduleRef);
+            }
+          } catch (err) {
+            // Ignore UnknownDependenciesException, it will be handled at runtime
+          }
+        }
+      }
+
+      visiting.delete(wrapper.id);
+      visited.add(wrapper.id);
+    };
+
+    for (const moduleRef of modules.values()) {
+      for (const wrapper of moduleRef.providers.values()) {
+        await checkWrapper(wrapper, moduleRef);
+      }
+      for (const wrapper of moduleRef.controllers.values()) {
+        await checkWrapper(wrapper, moduleRef);
+      }
+      for (const wrapper of moduleRef.injectables.values()) {
+        await checkWrapper(wrapper, moduleRef);
+      }
+    }
+  }
+
   public async loadInstance<T>(
     wrapper: InstanceWrapper<T>,
     collection: Map<InjectionToken, InstanceWrapper>,
