@@ -1,0 +1,104 @@
+diff --git a/packages/websockets/index.ts b/packages/websockets/index.ts
+index c831a18b2..4569b5df9 100644
+--- a/packages/websockets/index.ts
++++ b/packages/websockets/index.ts
+@@ -10,5 +10,6 @@ export * from './adapters';
+ export * from './decorators';
+ export * from './errors';
+ export * from './exceptions';
++export * from './interceptors';
+ export { MessageMappingProperties } from './gateway-metadata-explorer';
+ export * from './interfaces';
+diff --git a/packages/websockets/web-sockets-controller.ts b/packages/websockets/web-sockets-controller.ts
+index 37e21efef..6a2d9caa3 100644
+--- a/packages/websockets/web-sockets-controller.ts
++++ b/packages/websockets/web-sockets-controller.ts
+@@ -1,3 +1,4 @@
++import { isFunction } from '@nestjs/common/utils/shared.utils';
+ import { NestApplicationContextOptions } from '@nestjs/common/interfaces/nest-application-context-options.interface';
+ import { Type } from '@nestjs/common/interfaces/type.interface';
+ import { Logger } from '@nestjs/common/services/logger.service';
+@@ -23,6 +24,7 @@ import { GatewayMetadata } from './interfaces/gateway-metadata.interface';
+ import { NestGateway } from './interfaces/nest-gateway.interface';
+ import { ServerAndEventStreamsHost } from './interfaces/server-and-event-streams-host.interface';
+ import { WebsocketEntrypointMetadata } from './interfaces/websockets-entrypoint-metadata.interface';
++import { WsTimeoutInterceptor } from './interceptors';
+ import { SocketServerProvider } from './socket-server-provider';
+ import { compareElementAt } from './utils/compare-element.util';
+ 
+@@ -153,11 +155,16 @@ export class WebSocketsController {
+ 
+   public subscribeConnectionEvent(instance: NestGateway, event: Subject<any>) {
+     if (instance.handleConnection) {
++      const timeoutInterceptor = this.getGlobalWsTimeoutInterceptor();
+       event
+         .pipe(
+-          distinctUntilChanged((prev, curr) => compareElementAt(prev, curr, 0)),
++          distinctUntilChanged((prev: unknown[], curr: unknown[]) =>
++            compareElementAt(prev, curr, 0),
++          ),
+         )
+-        .subscribe((args: unknown[]) => instance.handleConnection!(...args));
++        .subscribe((args: unknown[]) =>
++          this.handleConnection(instance, args, timeoutInterceptor),
++        );
+     }
+   }
+ 
+@@ -224,7 +231,55 @@ export class WebSocketsController {
+     });
+   }
+ 
+-  private assignServerToProperties<T = any>(
++  public getGlobalWsTimeoutInterceptor(): WsTimeoutInterceptor | undefined {
++    const interceptors = this.config.getGlobalInterceptors();
++
++    for (let index = interceptors.length - 1; index >= 0; index--) {
++      const interceptor = interceptors[index];
++      if (interceptor instanceof WsTimeoutInterceptor) {
++        return interceptor;
++      }
++    }
++
++    return undefined;
++  }
++
++  public handleConnection(
++    instance: NestGateway,
++    args: unknown[],
++    timeoutInterceptor?: WsTimeoutInterceptor,
++  ) {
++    const result = instance.handleConnection?.(...args);
++    const timeoutMs = timeoutInterceptor?.getConnectionTimeout();
++
++    if (!timeoutMs || !timeoutInterceptor) {
++      return result;
++    }
++
++    const completionPromise = this.toCompletionPromise(result);
++    if (!completionPromise) {
++      return result;
++    }
++
++    const [client] = args;
++    const timeoutId = setTimeout(
++      () => timeoutInterceptor.handleTimeout(client),
++      timeoutMs,
++    );
++
++    void completionPromise.finally(() => clearTimeout(timeoutId));
++    return result;
++  }
++
++  public toCompletionPromise(result: unknown): Promise<void> | undefined {
++    if (!isFunction((result as Promise<void> | undefined)?.then)) {
++      return undefined;
++    }
++
++    return (result as Promise<void>).then(() => undefined);
++  }
++
++  private assignServerToProperties(
+     instance: NestGateway,
+     server: object,
+   ) {
