@@ -12,3 +12,4 @@ export * from './errors';
 export * from './exceptions';
 export { MessageMappingProperties } from './gateway-metadata-explorer';
 export * from './interfaces';
+export * from './interceptors';
