@@ -1,0 +1,30 @@
+diff --git a/packages/websockets/constants.ts b/packages/websockets/constants.ts
+index a14346292..eb05c0764 100644
+--- a/packages/websockets/constants.ts
++++ b/packages/websockets/constants.ts
+@@ -13,3 +13,5 @@ export const CONNECTION_EVENT = 'connection';
+ export const DISCONNECT_EVENT = 'disconnect';
+ export const CLOSE_EVENT = 'close';
+ export const ERROR_EVENT = 'error';
++
++export const WS_TIMEOUT_METADATA = 'websockets:timeout_ms';
+diff --git a/packages/websockets/decorators/index.ts b/packages/websockets/decorators/index.ts
+index ee6f88bcd..077ce6d78 100644
+--- a/packages/websockets/decorators/index.ts
++++ b/packages/websockets/decorators/index.ts
+@@ -4,3 +4,4 @@ export * from './message-body.decorator';
+ export * from './socket-gateway.decorator';
+ export * from './subscribe-message.decorator';
+ export * from './ack.decorator';
++export * from './ws-timeout.decorator';
+diff --git a/packages/websockets/index.ts b/packages/websockets/index.ts
+index c831a18b2..4569b5df9 100644
+--- a/packages/websockets/index.ts
++++ b/packages/websockets/index.ts
+@@ -10,5 +10,6 @@ export * from './adapters';
+ export * from './decorators';
+ export * from './errors';
+ export * from './exceptions';
++export * from './interceptors';
+ export { MessageMappingProperties } from './gateway-metadata-explorer';
+ export * from './interfaces';
