@@ -34,10 +34,17 @@ aliases:
     run:
       name: Build
       command: npm run build
-  - &run-unit-tests
-    run:
-      name: Test
-      command: npm run test
+  - &restore-lerna-cache
+    restore_cache:
+      keys:
+        - lerna-cache-{{ checksum "package.json" }}-{{ .Branch }}
+        - lerna-cache-{{ checksum "package.json" }}
+        - lerna-cache-
+  - &save-lerna-cache
+    save_cache:
+      key: lerna-cache-{{ checksum "package.json" }}-{{ .Branch }}
+      paths:
+        - .lerna/cache
 
 jobs:
   build:
@@ -50,9 +57,11 @@ jobs:
           name: Update NPM version
           command: 'sudo npm install -g npm@^9'
       - *restore-cache
+      - *restore-lerna-cache
       - *install-deps
       - *save-cache
       - *build-packages
+      - *save-lerna-cache
 
   test:
     parameters:
@@ -61,6 +70,7 @@ jobs:
     working_directory: ~/nest
     docker:
       - image: cimg/node:<< parameters.node-version >>
+    parallelism: 4
     steps:
       - when:
           condition:
@@ -89,6 +99,7 @@ jobs:
           steps:
             - checkout
             - *restore-cache
+            - *restore-lerna-cache
             - *install-deps
             - *build-packages
             - when:
@@ -101,7 +112,10 @@ jobs:
                 steps:
                   - run:
                       name: Test (coverage)
-                      command: npm run test:cov
+                      command: |
+                        TEST_FILES=$(circleci tests glob "packages/**/*.spec.ts" | circleci tests split --split-by=timings)
+                        echo "Running tests: $TEST_FILES"
+                        node --loader ts-node/esm ./node_modules/mocha/bin/mocha.js $TEST_FILES
                   - run:
                       name: Collect coverage
                       command: npm run coverage
@@ -116,7 +130,12 @@ jobs:
                         '<< pipeline.parameters.maintenance-node-version >>',
                       ]
                 steps:
-                  - *run-unit-tests
+                  - run:
+                      name: Test
+                      command: |
+                        TEST_FILES=$(circleci tests glob "packages/**/*.spec.ts" | circleci tests split --split-by=timings)
+                        echo "Running tests: $TEST_FILES"
+                        node --loader ts-node/esm ./node_modules/mocha/bin/mocha.js $TEST_FILES
 
   lint:
     working_directory: ~/nest

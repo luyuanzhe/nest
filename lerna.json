@@ -1,5 +1,18 @@
 {
   "packages": ["packages/*"],
   "version": "11.1.24",
-  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
+  "cache": {
+    "enabled": true,
+    "directory": ".lerna/cache"
+  },
+  "command": {
+    "run": {
+      "stream": true,
+      "sort": true,
+      "parallel": false
+    }
+  },
+  "useNx": false,
+  "useWorkspaces": false
 }

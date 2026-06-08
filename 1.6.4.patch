@@ -1,0 +1,104 @@
+diff --git a/.circleci/config.yml b/.circleci/config.yml
+index 0e5dc94fb..31140d8a9 100644
+--- a/.circleci/config.yml
++++ b/.circleci/config.yml
+@@ -34,10 +34,17 @@ aliases:
+     run:
+       name: Build
+       command: npm run build
+-  - &run-unit-tests
+-    run:
+-      name: Test
+-      command: npm run test
++  - &restore-lerna-cache
++    restore_cache:
++      keys:
++        - lerna-cache-{{ checksum "package.json" }}-{{ .Branch }}
++        - lerna-cache-{{ checksum "package.json" }}
++        - lerna-cache-
++  - &save-lerna-cache
++    save_cache:
++      key: lerna-cache-{{ checksum "package.json" }}-{{ .Branch }}
++      paths:
++        - .lerna/cache
+ 
+ jobs:
+   build:
+@@ -50,9 +57,11 @@ jobs:
+           name: Update NPM version
+           command: 'sudo npm install -g npm@^9'
+       - *restore-cache
++      - *restore-lerna-cache
+       - *install-deps
+       - *save-cache
+       - *build-packages
++      - *save-lerna-cache
+ 
+   test:
+     parameters:
+@@ -61,6 +70,7 @@ jobs:
+     working_directory: ~/nest
+     docker:
+       - image: cimg/node:<< parameters.node-version >>
++    parallelism: 4
+     steps:
+       - when:
+           condition:
+@@ -89,6 +99,7 @@ jobs:
+           steps:
+             - checkout
+             - *restore-cache
++            - *restore-lerna-cache
+             - *install-deps
+             - *build-packages
+             - when:
+@@ -101,7 +112,10 @@ jobs:
+                 steps:
+                   - run:
+                       name: Test (coverage)
+-                      command: npm run test:cov
++                      command: |
++                        TEST_FILES=$(circleci tests glob "packages/**/*.spec.ts" | circleci tests split --split-by=timings)
++                        echo "Running tests: $TEST_FILES"
++                        node --loader ts-node/esm ./node_modules/mocha/bin/mocha.js $TEST_FILES
+                   - run:
+                       name: Collect coverage
+                       command: npm run coverage
+@@ -116,7 +130,12 @@ jobs:
+                         '<< pipeline.parameters.maintenance-node-version >>',
+                       ]
+                 steps:
+-                  - *run-unit-tests
++                  - run:
++                      name: Test
++                      command: |
++                        TEST_FILES=$(circleci tests glob "packages/**/*.spec.ts" | circleci tests split --split-by=timings)
++                        echo "Running tests: $TEST_FILES"
++                        node --loader ts-node/esm ./node_modules/mocha/bin/mocha.js $TEST_FILES
+ 
+   lint:
+     working_directory: ~/nest
+diff --git a/lerna.json b/lerna.json
+index 0ce7ffcbf..7ef2aa51f 100644
+--- a/lerna.json
++++ b/lerna.json
+@@ -1,5 +1,18 @@
+ {
+   "packages": ["packages/*"],
+   "version": "11.1.24",
+-  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
++  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
++  "cache": {
++    "enabled": true,
++    "directory": ".lerna/cache"
++  },
++  "command": {
++    "run": {
++      "stream": true,
++      "sort": true,
++      "parallel": false
++    }
++  },
++  "useNx": false,
++  "useWorkspaces": false
+ }
