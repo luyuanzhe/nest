@@ -11,6 +11,11 @@ export const RQM_DEFAULT_URL = 'amqp://localhost';
 export const KAFKA_DEFAULT_BROKER = 'localhost:9092';
 export const KAFKA_DEFAULT_CLIENT = 'nestjs-consumer';
 export const KAFKA_DEFAULT_GROUP = 'nestjs-group';
+export const PULSAR_DEFAULT_SERVICE_URL = 'pulsar://localhost:6650';
+export const PULSAR_DEFAULT_TOPIC_PREFIX =
+  'persistent://public/default/nestjs';
+export const PULSAR_DEFAULT_SUBSCRIPTION = 'nestjs-pulsar';
+export const PULSAR_DEFAULT_REPLY_TOPIC = '__reply__';
 export const MQTT_SEPARATOR = '/';
 export const MQTT_WILDCARD_SINGLE = '+';
 export const MQTT_WILDCARD_ALL = '#';

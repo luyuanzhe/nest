@@ -5,6 +5,7 @@ import { ServerGrpc } from '../../server/server-grpc';
 import { ServerKafka } from '../../server/server-kafka';
 import { ServerMqtt } from '../../server/server-mqtt';
 import { ServerNats } from '../../server/server-nats';
+import { ServerPulsar } from '../../server/server-pulsar';
 import { ServerRedis } from '../../server/server-redis';
 import { ServerRMQ } from '../../server/server-rmq';
 import { ServerTCP } from '../../server/server-tcp';
@@ -53,6 +54,13 @@ describe('ServerFactory', () => {
       expect(
         ServerFactory.create({ transport: Transport.KAFKA }) instanceof
           ServerKafka,
+      ).to.be.true;
+    });
+
+    it(`should return pulsar server`, () => {
+      expect(
+        ServerFactory.create({ transport: Transport.PULSAR }) instanceof
+          ServerPulsar,
       ).to.be.true;
     });
 
@@ -117,6 +125,17 @@ describe('ServerFactory', () => {
       server.setTransportId(transportId);
 
       expect(server instanceof ServerKafka).to.be.true;
+      expect(server.transportId === transportId).to.be.true;
+    });
+
+    it(`should return pulsar server with specific transport id`, () => {
+      const transportId = Symbol('test');
+      const server = ServerFactory.create({
+        transport: Transport.PULSAR,
+      });
+      server.setTransportId(transportId);
+
+      expect(server instanceof ServerPulsar).to.be.true;
       expect(server.transportId === transportId).to.be.true;
     });
 

@@ -30,6 +30,7 @@ export type MicroserviceOptions =
   | MqttOptions
   | RmqOptions
   | KafkaOptions
+  | PulsarOptions
   | CustomStrategy;
 
 export type TransportId = Transport | symbol;
@@ -352,5 +353,40 @@ export interface KafkaOptions {
     deserializer?: Deserializer;
     parser?: KafkaParserConfig;
     producerOnlyMode?: boolean;
+  };
+}
+
+/**
+ * @publicApi
+ */
+export interface PulsarOptions {
+  transport?: Transport.PULSAR;
+  options?: {
+    client?: {
+      serviceUrl?: string;
+      authentication?: any;
+      operationTimeoutSeconds?: number;
+      listenerName?: string;
+      [key: string]: any;
+    };
+    consumer?: {
+      subscriptionType?: any;
+      subscriptionInitialPosition?: any;
+      ackTimeoutMs?: number;
+      receiverQueueSize?: number;
+      [key: string]: any;
+    };
+    producer?: {
+      batchingEnabled?: boolean;
+      sendTimeoutMs?: number;
+      compressionType?: any;
+      [key: string]: any;
+    };
+    topicPrefix?: string;
+    subscription?: string;
+    replyTopic?: string;
+    clientId?: string;
+    serializer?: Serializer;
+    deserializer?: Deserializer;
   };
 }
