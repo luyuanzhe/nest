@@ -1,0 +1,102 @@
+diff --git a/packages/core/errors/exceptions/index.ts b/packages/core/errors/exceptions/index.ts
+index 530968b2f..758bfaa66 100644
+--- a/packages/core/errors/exceptions/index.ts
++++ b/packages/core/errors/exceptions/index.ts
+@@ -6,3 +6,4 @@ export * from './invalid-class.exception';
+ export * from './unknown-export.exception';
+ export * from './unknown-module.exception';
+ export * from './undefined-forwardref.exception';
++export * from './static-circular-dependency.exception';
+diff --git a/packages/core/injector/container.ts b/packages/core/injector/container.ts
+index 555e90a5e..dc5111402 100644
+--- a/packages/core/injector/container.ts
++++ b/packages/core/injector/container.ts
+@@ -238,6 +238,7 @@ export class NestContainer {
+   public async addImport(
+     relatedModule: Type<any> | DynamicModule,
+     token: string,
++    isForwardRef = false,
+   ) {
+     if (!this.modules.has(token)) {
+       return;
+@@ -246,7 +247,7 @@ export class NestContainer {
+     const { token: relatedModuleToken } =
+       await this.moduleCompiler.compile(relatedModule);
+     const related = this.modules.get(relatedModuleToken)!;
+-    moduleRef.addImport(related);
++    moduleRef.addImport(related, isForwardRef);
+   }
+ 
+   public addProvider(
+diff --git a/packages/core/injector/index.ts b/packages/core/injector/index.ts
+index 21e406d06..a1cd82394 100644
+--- a/packages/core/injector/index.ts
++++ b/packages/core/injector/index.ts
+@@ -1,4 +1,5 @@
+ export * from './container';
++export * from './circular-dependency-checker';
+ export * from './inquirer';
+ export { ContextId, HostComponentInfo } from './instance-wrapper';
+ export * from './lazy-module-loader/lazy-module-loader';
+diff --git a/packages/core/injector/module.ts b/packages/core/injector/module.ts
+index c9dd10a93..11ed225bd 100644
+--- a/packages/core/injector/module.ts
++++ b/packages/core/injector/module.ts
+@@ -44,6 +44,7 @@ import { ModuleRef, ModuleRefGetOrResolveOpts } from './module-ref';
+ export class Module {
+   private readonly _id: string;
+   private readonly _imports = new Set<Module>();
++  private readonly _forwardRefImports = new Set<Module>();
+   private readonly _providers = new Map<
+     InjectionToken,
+     InstanceWrapper<Injectable>
+@@ -530,8 +531,15 @@ export class Module {
+     });
+   }
+ 
+-  public addImport(moduleRef: Module) {
++  public addImport(moduleRef: Module, isForwardRef = false) {
+     this._imports.add(moduleRef);
++    if (isForwardRef) {
++      this._forwardRefImports.add(moduleRef);
++    }
++  }
++
++  public isForwardRefImport(moduleRef: Module): boolean {
++    return this._forwardRefImports.has(moduleRef);
+   }
+ 
+   public replace(toReplace: InjectionToken, options: any) {
+diff --git a/packages/core/scanner.ts b/packages/core/scanner.ts
+index d63429257..9e6b2f5f5 100644
+--- a/packages/core/scanner.ts
++++ b/packages/core/scanner.ts
+@@ -47,6 +47,7 @@ import { InvalidModuleException } from './errors/exceptions/invalid-module.excep
+ import { UndefinedModuleException } from './errors/exceptions/undefined-module.exception';
+ import { getClassScope } from './helpers/get-class-scope';
+ import { NestContainer } from './injector/container';
++import { CircularDependencyChecker } from './injector/circular-dependency-checker';
+ import { InstanceWrapper } from './injector/instance-wrapper';
+ import { InternalCoreModuleFactory } from './injector/internal-core-module/internal-core-module-factory';
+ import { Module } from './injector/module';
+@@ -100,6 +101,8 @@ export class DependenciesScanner {
+     // Global modules have their distance set to MAX anyway.
+     this.calculateModulesDistance();
+ 
++    CircularDependencyChecker.check(this.container.getModules());
++
+     this.container.bindGlobalScope();
+   }
+ 
+@@ -435,9 +438,9 @@ export class DependenciesScanner {
+       throw new CircularDependencyException(context);
+     }
+     if (this.isForwardReference(related)) {
+-      return this.container.addImport(related.forwardRef(), token);
++      return this.container.addImport(related.forwardRef(), token, true);
+     }
+-    await this.container.addImport(related, token);
++    await this.container.addImport(related, token, false);
+   }
+ 
+   public isCustomProvider(

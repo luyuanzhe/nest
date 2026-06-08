@@ -47,6 +47,7 @@ import { InvalidModuleException } from './errors/exceptions/invalid-module.excep
 import { UndefinedModuleException } from './errors/exceptions/undefined-module.exception';
 import { getClassScope } from './helpers/get-class-scope';
 import { NestContainer } from './injector/container';
+import { CircularDependencyChecker } from './injector/circular-dependency-checker';
 import { InstanceWrapper } from './injector/instance-wrapper';
 import { InternalCoreModuleFactory } from './injector/internal-core-module/internal-core-module-factory';
 import { Module } from './injector/module';
@@ -99,6 +100,8 @@ export class DependenciesScanner {
     // but before global modules are registered (linked to all modules).
     // Global modules have their distance set to MAX anyway.
     this.calculateModulesDistance();
+
+    CircularDependencyChecker.check(this.container.getModules());
 
     this.container.bindGlobalScope();
   }
@@ -435,9 +438,9 @@ export class DependenciesScanner {
       throw new CircularDependencyException(context);
     }
     if (this.isForwardReference(related)) {
-      return this.container.addImport(related.forwardRef(), token);
+      return this.container.addImport(related.forwardRef(), token, true);
     }
-    await this.container.addImport(related, token);
+    await this.container.addImport(related, token, false);
   }
 
   public isCustomProvider(

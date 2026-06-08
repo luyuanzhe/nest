@@ -44,6 +44,7 @@ import { ModuleRef, ModuleRefGetOrResolveOpts } from './module-ref';
 export class Module {
   private readonly _id: string;
   private readonly _imports = new Set<Module>();
+  private readonly _forwardRefImports = new Set<Module>();
   private readonly _providers = new Map<
     InjectionToken,
     InstanceWrapper<Injectable>
@@ -530,8 +531,15 @@ export class Module {
     });
   }
 
-  public addImport(moduleRef: Module) {
+  public addImport(moduleRef: Module, isForwardRef = false) {
     this._imports.add(moduleRef);
+    if (isForwardRef) {
+      this._forwardRefImports.add(moduleRef);
+    }
+  }
+
+  public isForwardRefImport(moduleRef: Module): boolean {
+    return this._forwardRefImports.has(moduleRef);
   }
 
   public replace(toReplace: InjectionToken, options: any) {

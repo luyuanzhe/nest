@@ -238,6 +238,7 @@ export class NestContainer {
   public async addImport(
     relatedModule: Type<any> | DynamicModule,
     token: string,
+    isForwardRef = false,
   ) {
     if (!this.modules.has(token)) {
       return;
@@ -246,7 +247,7 @@ export class NestContainer {
     const { token: relatedModuleToken } =
       await this.moduleCompiler.compile(relatedModule);
     const related = this.modules.get(relatedModuleToken)!;
-    moduleRef.addImport(related);
+    moduleRef.addImport(related, isForwardRef);
   }
 
   public addProvider(
