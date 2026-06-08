@@ -1,15 +1,11 @@
 import { Injectable } from '../decorators/core/injectable.decorator';
 import { Optional } from '../decorators/core/optional.decorator';
-import { HttpStatus } from '../enums/http-status.enum';
 import {
   ArgumentMetadata,
   PipeTransform,
 } from '../interfaces/features/pipe-transform.interface';
-import {
-  ErrorHttpStatusCode,
-  HttpErrorByCode,
-} from '../utils/http-error-by-code.util';
-import { isNil } from '../utils/shared.utils';
+import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
+import { ParsePipe } from './parse.pipe';
 
 /**
  * @publicApi
@@ -41,17 +37,12 @@ export interface ParseIntPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseIntPipe implements PipeTransform<string> {
-  protected exceptionFactory: (error: string) => any;
-
-  constructor(@Optional() protected readonly options?: ParseIntPipeOptions) {
-    options = options || {};
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+export class ParseIntPipe
+  extends ParsePipe<ParseIntPipeOptions>
+  implements PipeTransform<string>
+{
+  constructor(@Optional() options?: ParseIntPipeOptions) {
+    super(options);
   }
 
   /**
@@ -62,8 +53,8 @@ export class ParseIntPipe implements PipeTransform<string> {
    * @param metadata contains metadata about the currently processed route argument
    */
   async transform(value: string, metadata: ArgumentMetadata): Promise<number> {
-    if (isNil(value) && this.options?.optional) {
-      return value;
+    if (this.isOptionallyNil(value)) {
+      return this.getOptionalValue<number>(value);
     }
     if (!this.isNumeric(value)) {
       throw this.exceptionFactory(

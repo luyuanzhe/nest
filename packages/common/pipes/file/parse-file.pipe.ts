@@ -1,8 +1,7 @@
 import { Injectable, Optional } from '../../decorators/core';
-import { HttpStatus } from '../../enums';
 import { PipeTransform } from '../../interfaces/features/pipe-transform.interface';
-import { HttpErrorByCode } from '../../utils/http-error-by-code.util';
 import { isEmpty, isObject, isUndefined } from '../../utils/shared.utils';
+import { ParsePipe } from '../parse.pipe';
 import { FileValidator } from './file-validator.interface';
 import { ParseFileOptions } from './parse-file-options.interface';
 
@@ -17,25 +16,17 @@ import { ParseFileOptions } from './parse-file-options.interface';
  * @publicApi
  */
 @Injectable()
-export class ParseFilePipe implements PipeTransform<any> {
-  protected exceptionFactory: (error: string) => any;
+export class ParseFilePipe
+  extends ParsePipe<ParseFileOptions>
+  implements PipeTransform<any>
+{
   private readonly validators: FileValidator[];
   private readonly fileIsRequired: boolean;
 
   constructor(@Optional() options: ParseFileOptions = {}) {
-    const {
-      exceptionFactory,
-      errorHttpStatusCode = HttpStatus.BAD_REQUEST,
-      validators = [],
-      fileIsRequired,
-    } = options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
-
-    this.validators = validators;
-    this.fileIsRequired = fileIsRequired ?? true;
+    super(options);
+    this.validators = options.validators || [];
+    this.fileIsRequired = options.fileIsRequired ?? true;
   }
 
   async transform(value: any): Promise<any> {

@@ -1,11 +1,8 @@
 import { Injectable } from '../decorators/core/injectable.decorator';
-import { HttpStatus } from '../enums/http-status.enum';
 import { PipeTransform } from '../interfaces/features/pipe-transform.interface';
-import {
-  ErrorHttpStatusCode,
-  HttpErrorByCode,
-} from '../utils/http-error-by-code.util';
+import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
 import { isNil } from '../utils/shared.utils';
+import { ParsePipe } from './parse.pipe';
 
 export interface ParseDatePipeOptions {
   /**
@@ -31,18 +28,12 @@ export interface ParseDatePipeOptions {
 }
 
 @Injectable()
-export class ParseDatePipe implements PipeTransform<
-  string | number | undefined | null
-> {
-  protected exceptionFactory: (error: string) => any;
-
-  constructor(private readonly options: ParseDatePipeOptions = {}) {
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+export class ParseDatePipe
+  extends ParsePipe<ParseDatePipeOptions>
+  implements PipeTransform<string | number | undefined | null>
+{
+  constructor(options: ParseDatePipeOptions = {}) {
+    super(options);
   }
 
   /**
@@ -55,8 +46,8 @@ export class ParseDatePipe implements PipeTransform<
   transform(
     value: string | number | undefined | null,
   ): Date | null | undefined {
-    if (this.options.optional && isNil(value)) {
-      return this.options.default ? this.options.default() : value;
+    if (this.isOptionallyNil(value)) {
+      return this.options.default ? this.options.default() : (value as null | undefined);
     }
 
     if (isNil(value) || value === '') {

@@ -1,13 +1,12 @@
 import { Injectable } from '../decorators/core/injectable.decorator';
 import { Optional } from '../decorators/core/optional.decorator';
-import { HttpStatus } from '../enums/http-status.enum';
 import { Type } from '../interfaces';
 import {
   ArgumentMetadata,
   PipeTransform,
 } from '../interfaces/features/pipe-transform.interface';
-import { HttpErrorByCode } from '../utils/http-error-by-code.util';
-import { isNil, isString, isUndefined } from '../utils/shared.utils';
+import { isString, isUndefined } from '../utils/shared.utils';
+import { ParsePipe } from './parse.pipe';
 import { ValidationPipe, ValidationPipeOptions } from './validation.pipe';
 
 const VALIDATION_ERROR_MESSAGE = 'Validation failed (parsable array expected)';
@@ -51,22 +50,19 @@ export interface ParseArrayOptions extends Omit<
  * @publicApi
  */
 @Injectable()
-export class ParseArrayPipe implements PipeTransform {
+export class ParseArrayPipe
+  extends ParsePipe<ParseArrayOptions>
+  implements PipeTransform
+{
   protected readonly validationPipe: ValidationPipe;
-  protected exceptionFactory: (error: string) => any;
 
-  constructor(@Optional() protected readonly options: ParseArrayOptions = {}) {
+  constructor(@Optional() options: ParseArrayOptions = {}) {
+    super(options);
     this.validationPipe = new ValidationPipe({
       transform: true,
       validateCustomDecorators: true,
       ...options,
     });
-
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
   }
 
   /**
@@ -79,7 +75,7 @@ export class ParseArrayPipe implements PipeTransform {
   async transform(value: any, metadata: ArgumentMetadata): Promise<any> {
     if (!value && !this.options.optional) {
       throw this.exceptionFactory(VALIDATION_ERROR_MESSAGE);
-    } else if (isNil(value) && this.options.optional) {
+    } else if (this.isOptionallyNil(value)) {
       return value;
     }
 
@@ -117,8 +113,6 @@ export class ParseArrayPipe implements PipeTransform {
         return this.validationPipe.transform(item, validationMetadata);
       };
       if (this.options.stopAtFirstError === false) {
-        // strict compare to "false" to make sure
-        // that this option is disabled by default
         let errors: string[] = [];
 
         const targetArray = value as Array<unknown>;

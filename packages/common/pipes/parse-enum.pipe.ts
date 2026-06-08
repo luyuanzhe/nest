@@ -1,11 +1,8 @@
 import { Injectable, Optional } from '../decorators/core';
-import { ArgumentMetadata, HttpStatus } from '../index';
+import { ArgumentMetadata } from '../index';
 import { PipeTransform } from '../interfaces/features/pipe-transform.interface';
-import {
-  ErrorHttpStatusCode,
-  HttpErrorByCode,
-} from '../utils/http-error-by-code.util';
-import { isNil } from '../utils/shared.utils';
+import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
+import { ParsePipe } from './parse.pipe';
 
 /**
  * @publicApi
@@ -37,24 +34,20 @@ export interface ParseEnumPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseEnumPipe<T = any> implements PipeTransform<T> {
-  protected exceptionFactory: (error: string) => any;
+export class ParseEnumPipe<T = any>
+  extends ParsePipe<ParseEnumPipeOptions>
+  implements PipeTransform<T>
+{
   constructor(
     protected readonly enumType: T,
-    @Optional() protected readonly options?: ParseEnumPipeOptions,
+    @Optional() options?: ParseEnumPipeOptions,
   ) {
     if (!enumType) {
       throw new Error(
         `"ParseEnumPipe" requires "enumType" argument specified (to validate input values).`,
       );
     }
-    options = options || {};
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+    super(options);
   }
 
   /**
@@ -65,8 +58,8 @@ export class ParseEnumPipe<T = any> implements PipeTransform<T> {
    * @param metadata contains metadata about the currently processed route argument
    */
   async transform(value: T, metadata: ArgumentMetadata): Promise<T> {
-    if (isNil(value) && this.options?.optional) {
-      return value;
+    if (this.isOptionallyNil(value)) {
+      return this.getOptionalValue<T>(value);
     }
     if (!this.isEnum(value)) {
       throw this.exceptionFactory(

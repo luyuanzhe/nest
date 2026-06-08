@@ -1,15 +1,12 @@
 import { Injectable } from '../decorators/core/injectable.decorator';
 import { Optional } from '../decorators/core/optional.decorator';
-import { HttpStatus } from '../enums/http-status.enum';
 import {
   ArgumentMetadata,
   PipeTransform,
 } from '../interfaces/features/pipe-transform.interface';
-import {
-  ErrorHttpStatusCode,
-  HttpErrorByCode,
-} from '../utils/http-error-by-code.util';
-import { isNil, isString } from '../utils/shared.utils';
+import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
+import { isString } from '../utils/shared.utils';
+import { ParsePipe } from './parse.pipe';
 
 /**
  * @publicApi
@@ -45,7 +42,10 @@ export interface ParseUUIDPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseUUIDPipe implements PipeTransform<string> {
+export class ParseUUIDPipe
+  extends ParsePipe<ParseUUIDPipeOptions>
+  implements PipeTransform<string>
+{
   protected static uuidRegExps = {
     3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
     4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
@@ -54,25 +54,15 @@ export class ParseUUIDPipe implements PipeTransform<string> {
     all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
   };
   private readonly version: '3' | '4' | '5' | '7' | undefined;
-  protected exceptionFactory: (errors: string) => any;
 
-  constructor(@Optional() protected readonly options?: ParseUUIDPipeOptions) {
-    options = options || {};
-    const {
-      exceptionFactory,
-      errorHttpStatusCode = HttpStatus.BAD_REQUEST,
-      version,
-    } = options;
-
-    this.version = version;
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+  constructor(@Optional() options?: ParseUUIDPipeOptions) {
+    super(options);
+    this.version = this.options.version;
   }
 
   async transform(value: string, metadata: ArgumentMetadata): Promise<string> {
-    if (isNil(value) && this.options?.optional) {
-      return value;
+    if (this.isOptionallyNil(value)) {
+      return this.getOptionalValue<string>(value);
     }
     if (!this.isUUID(value, this.version)) {
       throw this.exceptionFactory(

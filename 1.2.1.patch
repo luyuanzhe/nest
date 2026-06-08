@@ -1,0 +1,465 @@
+diff --git a/packages/common/pipes/file/parse-file.pipe.ts b/packages/common/pipes/file/parse-file.pipe.ts
+index d2ea60e50..62c46e0d7 100644
+--- a/packages/common/pipes/file/parse-file.pipe.ts
++++ b/packages/common/pipes/file/parse-file.pipe.ts
+@@ -1,8 +1,7 @@
+ import { Injectable, Optional } from '../../decorators/core';
+-import { HttpStatus } from '../../enums';
+ import { PipeTransform } from '../../interfaces/features/pipe-transform.interface';
+-import { HttpErrorByCode } from '../../utils/http-error-by-code.util';
+ import { isEmpty, isObject, isUndefined } from '../../utils/shared.utils';
++import { ParsePipe } from '../parse.pipe';
+ import { FileValidator } from './file-validator.interface';
+ import { ParseFileOptions } from './parse-file-options.interface';
+ 
+@@ -17,25 +16,17 @@ import { ParseFileOptions } from './parse-file-options.interface';
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseFilePipe implements PipeTransform<any> {
+-  protected exceptionFactory: (error: string) => any;
++export class ParseFilePipe
++  extends ParsePipe<ParseFileOptions>
++  implements PipeTransform<any>
++{
+   private readonly validators: FileValidator[];
+   private readonly fileIsRequired: boolean;
+ 
+   constructor(@Optional() options: ParseFileOptions = {}) {
+-    const {
+-      exceptionFactory,
+-      errorHttpStatusCode = HttpStatus.BAD_REQUEST,
+-      validators = [],
+-      fileIsRequired,
+-    } = options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+-
+-    this.validators = validators;
+-    this.fileIsRequired = fileIsRequired ?? true;
++    super(options);
++    this.validators = options.validators || [];
++    this.fileIsRequired = options.fileIsRequired ?? true;
+   }
+ 
+   async transform(value: any): Promise<any> {
+diff --git a/packages/common/pipes/parse-array.pipe.ts b/packages/common/pipes/parse-array.pipe.ts
+index 5bc5bd029..a2926f9bc 100644
+--- a/packages/common/pipes/parse-array.pipe.ts
++++ b/packages/common/pipes/parse-array.pipe.ts
+@@ -1,13 +1,12 @@
+ import { Injectable } from '../decorators/core/injectable.decorator';
+ import { Optional } from '../decorators/core/optional.decorator';
+-import { HttpStatus } from '../enums/http-status.enum';
+ import { Type } from '../interfaces';
+ import {
+   ArgumentMetadata,
+   PipeTransform,
+ } from '../interfaces/features/pipe-transform.interface';
+-import { HttpErrorByCode } from '../utils/http-error-by-code.util';
+-import { isNil, isString, isUndefined } from '../utils/shared.utils';
++import { isString, isUndefined } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ import { ValidationPipe, ValidationPipeOptions } from './validation.pipe';
+ 
+ const VALIDATION_ERROR_MESSAGE = 'Validation failed (parsable array expected)';
+@@ -51,22 +50,19 @@ export interface ParseArrayOptions extends Omit<
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseArrayPipe implements PipeTransform {
++export class ParseArrayPipe
++  extends ParsePipe<ParseArrayOptions>
++  implements PipeTransform
++{
+   protected readonly validationPipe: ValidationPipe;
+-  protected exceptionFactory: (error: string) => any;
+ 
+-  constructor(@Optional() protected readonly options: ParseArrayOptions = {}) {
++  constructor(@Optional() options: ParseArrayOptions = {}) {
++    super(options);
+     this.validationPipe = new ValidationPipe({
+       transform: true,
+       validateCustomDecorators: true,
+       ...options,
+     });
+-
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+   }
+ 
+   /**
+@@ -79,7 +75,7 @@ export class ParseArrayPipe implements PipeTransform {
+   async transform(value: any, metadata: ArgumentMetadata): Promise<any> {
+     if (!value && !this.options.optional) {
+       throw this.exceptionFactory(VALIDATION_ERROR_MESSAGE);
+-    } else if (isNil(value) && this.options.optional) {
++    } else if (this.isOptionallyNil(value)) {
+       return value;
+     }
+ 
+@@ -117,8 +113,6 @@ export class ParseArrayPipe implements PipeTransform {
+         return this.validationPipe.transform(item, validationMetadata);
+       };
+       if (this.options.stopAtFirstError === false) {
+-        // strict compare to "false" to make sure
+-        // that this option is disabled by default
+         let errors: string[] = [];
+ 
+         const targetArray = value as Array<unknown>;
+diff --git a/packages/common/pipes/parse-bool.pipe.ts b/packages/common/pipes/parse-bool.pipe.ts
+index 177ee7cbe..9d66b466e 100644
+--- a/packages/common/pipes/parse-bool.pipe.ts
++++ b/packages/common/pipes/parse-bool.pipe.ts
+@@ -1,15 +1,11 @@
+ import { Injectable } from '../decorators/core/injectable.decorator';
+ import { Optional } from '../decorators/core/optional.decorator';
+-import { HttpStatus } from '../enums/http-status.enum';
+ import {
+   ArgumentMetadata,
+   PipeTransform,
+ } from '../interfaces/features/pipe-transform.interface';
+-import {
+-  ErrorHttpStatusCode,
+-  HttpErrorByCode,
+-} from '../utils/http-error-by-code.util';
+-import { isNil } from '../utils/shared.utils';
++import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -41,19 +37,12 @@ export interface ParseBoolPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseBoolPipe implements PipeTransform<
+-  string | boolean,
+-  Promise<boolean>
+-> {
+-  protected exceptionFactory: (error: string) => any;
+-
+-  constructor(@Optional() protected readonly options?: ParseBoolPipeOptions) {
+-    options = options || {};
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++export class ParseBoolPipe
++  extends ParsePipe<ParseBoolPipeOptions>
++  implements PipeTransform<string | boolean, Promise<boolean>>
++{
++  constructor(@Optional() options?: ParseBoolPipeOptions) {
++    super(options);
+   }
+ 
+   /**
+@@ -67,8 +56,8 @@ export class ParseBoolPipe implements PipeTransform<
+     value: string | boolean,
+     metadata: ArgumentMetadata,
+   ): Promise<boolean> {
+-    if (isNil(value) && this.options?.optional) {
+-      return value;
++    if (this.isOptionallyNil(value)) {
++      return this.getOptionalValue<boolean>(value);
+     }
+     if (this.isTrue(value)) {
+       return true;
+diff --git a/packages/common/pipes/parse-date.pipe.ts b/packages/common/pipes/parse-date.pipe.ts
+index 4dc1d9860..51b92723f 100644
+--- a/packages/common/pipes/parse-date.pipe.ts
++++ b/packages/common/pipes/parse-date.pipe.ts
+@@ -1,11 +1,8 @@
+ import { Injectable } from '../decorators/core/injectable.decorator';
+-import { HttpStatus } from '../enums/http-status.enum';
+ import { PipeTransform } from '../interfaces/features/pipe-transform.interface';
+-import {
+-  ErrorHttpStatusCode,
+-  HttpErrorByCode,
+-} from '../utils/http-error-by-code.util';
++import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
+ import { isNil } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ 
+ export interface ParseDatePipeOptions {
+   /**
+@@ -31,18 +28,12 @@ export interface ParseDatePipeOptions {
+ }
+ 
+ @Injectable()
+-export class ParseDatePipe implements PipeTransform<
+-  string | number | undefined | null
+-> {
+-  protected exceptionFactory: (error: string) => any;
+-
+-  constructor(private readonly options: ParseDatePipeOptions = {}) {
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++export class ParseDatePipe
++  extends ParsePipe<ParseDatePipeOptions>
++  implements PipeTransform<string | number | undefined | null>
++{
++  constructor(options: ParseDatePipeOptions = {}) {
++    super(options);
+   }
+ 
+   /**
+@@ -55,8 +46,8 @@ export class ParseDatePipe implements PipeTransform<
+   transform(
+     value: string | number | undefined | null,
+   ): Date | null | undefined {
+-    if (this.options.optional && isNil(value)) {
+-      return this.options.default ? this.options.default() : value;
++    if (this.isOptionallyNil(value)) {
++      return this.options.default ? this.options.default() : (value as null | undefined);
+     }
+ 
+     if (isNil(value) || value === '') {
+diff --git a/packages/common/pipes/parse-enum.pipe.ts b/packages/common/pipes/parse-enum.pipe.ts
+index 47f3c263a..4a3581191 100644
+--- a/packages/common/pipes/parse-enum.pipe.ts
++++ b/packages/common/pipes/parse-enum.pipe.ts
+@@ -1,11 +1,8 @@
+ import { Injectable, Optional } from '../decorators/core';
+-import { ArgumentMetadata, HttpStatus } from '../index';
++import { ArgumentMetadata } from '../index';
+ import { PipeTransform } from '../interfaces/features/pipe-transform.interface';
+-import {
+-  ErrorHttpStatusCode,
+-  HttpErrorByCode,
+-} from '../utils/http-error-by-code.util';
+-import { isNil } from '../utils/shared.utils';
++import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -37,24 +34,20 @@ export interface ParseEnumPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseEnumPipe<T = any> implements PipeTransform<T> {
+-  protected exceptionFactory: (error: string) => any;
++export class ParseEnumPipe<T = any>
++  extends ParsePipe<ParseEnumPipeOptions>
++  implements PipeTransform<T>
++{
+   constructor(
+     protected readonly enumType: T,
+-    @Optional() protected readonly options?: ParseEnumPipeOptions,
++    @Optional() options?: ParseEnumPipeOptions,
+   ) {
+     if (!enumType) {
+       throw new Error(
+         `"ParseEnumPipe" requires "enumType" argument specified (to validate input values).`,
+       );
+     }
+-    options = options || {};
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++    super(options);
+   }
+ 
+   /**
+@@ -65,8 +58,8 @@ export class ParseEnumPipe<T = any> implements PipeTransform<T> {
+    * @param metadata contains metadata about the currently processed route argument
+    */
+   async transform(value: T, metadata: ArgumentMetadata): Promise<T> {
+-    if (isNil(value) && this.options?.optional) {
+-      return value;
++    if (this.isOptionallyNil(value)) {
++      return this.getOptionalValue<T>(value);
+     }
+     if (!this.isEnum(value)) {
+       throw this.exceptionFactory(
+diff --git a/packages/common/pipes/parse-float.pipe.ts b/packages/common/pipes/parse-float.pipe.ts
+index 04f5e97e2..9561dfead 100644
+--- a/packages/common/pipes/parse-float.pipe.ts
++++ b/packages/common/pipes/parse-float.pipe.ts
+@@ -1,11 +1,8 @@
+ import { Injectable, Optional } from '../decorators/core';
+-import { ArgumentMetadata, HttpStatus } from '../index';
++import { ArgumentMetadata } from '../index';
+ import { PipeTransform } from '../interfaces/features/pipe-transform.interface';
+-import {
+-  ErrorHttpStatusCode,
+-  HttpErrorByCode,
+-} from '../utils/http-error-by-code.util';
+-import { isNil } from '../utils/shared.utils';
++import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -37,17 +34,12 @@ export interface ParseFloatPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseFloatPipe implements PipeTransform<string> {
+-  protected exceptionFactory: (error: string) => any;
+-
+-  constructor(@Optional() protected readonly options?: ParseFloatPipeOptions) {
+-    options = options || {};
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++export class ParseFloatPipe
++  extends ParsePipe<ParseFloatPipeOptions>
++  implements PipeTransform<string>
++{
++  constructor(@Optional() options?: ParseFloatPipeOptions) {
++    super(options);
+   }
+ 
+   /**
+@@ -58,8 +50,8 @@ export class ParseFloatPipe implements PipeTransform<string> {
+    * @param metadata contains metadata about the currently processed route argument
+    */
+   async transform(value: string, metadata: ArgumentMetadata): Promise<number> {
+-    if (isNil(value) && this.options?.optional) {
+-      return value;
++    if (this.isOptionallyNil(value)) {
++      return this.getOptionalValue<number>(value);
+     }
+     if (!this.isNumeric(value)) {
+       throw this.exceptionFactory(
+diff --git a/packages/common/pipes/parse-int.pipe.ts b/packages/common/pipes/parse-int.pipe.ts
+index d74aa0205..f59929055 100644
+--- a/packages/common/pipes/parse-int.pipe.ts
++++ b/packages/common/pipes/parse-int.pipe.ts
+@@ -1,15 +1,11 @@
+ import { Injectable } from '../decorators/core/injectable.decorator';
+ import { Optional } from '../decorators/core/optional.decorator';
+-import { HttpStatus } from '../enums/http-status.enum';
+ import {
+   ArgumentMetadata,
+   PipeTransform,
+ } from '../interfaces/features/pipe-transform.interface';
+-import {
+-  ErrorHttpStatusCode,
+-  HttpErrorByCode,
+-} from '../utils/http-error-by-code.util';
+-import { isNil } from '../utils/shared.utils';
++import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -41,17 +37,12 @@ export interface ParseIntPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseIntPipe implements PipeTransform<string> {
+-  protected exceptionFactory: (error: string) => any;
+-
+-  constructor(@Optional() protected readonly options?: ParseIntPipeOptions) {
+-    options = options || {};
+-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
+-      options;
+-
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++export class ParseIntPipe
++  extends ParsePipe<ParseIntPipeOptions>
++  implements PipeTransform<string>
++{
++  constructor(@Optional() options?: ParseIntPipeOptions) {
++    super(options);
+   }
+ 
+   /**
+@@ -62,8 +53,8 @@ export class ParseIntPipe implements PipeTransform<string> {
+    * @param metadata contains metadata about the currently processed route argument
+    */
+   async transform(value: string, metadata: ArgumentMetadata): Promise<number> {
+-    if (isNil(value) && this.options?.optional) {
+-      return value;
++    if (this.isOptionallyNil(value)) {
++      return this.getOptionalValue<number>(value);
+     }
+     if (!this.isNumeric(value)) {
+       throw this.exceptionFactory(
+diff --git a/packages/common/pipes/parse-uuid.pipe.ts b/packages/common/pipes/parse-uuid.pipe.ts
+index 1c67860b9..d89c0e2fb 100644
+--- a/packages/common/pipes/parse-uuid.pipe.ts
++++ b/packages/common/pipes/parse-uuid.pipe.ts
+@@ -1,15 +1,12 @@
+ import { Injectable } from '../decorators/core/injectable.decorator';
+ import { Optional } from '../decorators/core/optional.decorator';
+-import { HttpStatus } from '../enums/http-status.enum';
+ import {
+   ArgumentMetadata,
+   PipeTransform,
+ } from '../interfaces/features/pipe-transform.interface';
+-import {
+-  ErrorHttpStatusCode,
+-  HttpErrorByCode,
+-} from '../utils/http-error-by-code.util';
+-import { isNil, isString } from '../utils/shared.utils';
++import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
++import { isString } from '../utils/shared.utils';
++import { ParsePipe } from './parse.pipe';
+ 
+ /**
+  * @publicApi
+@@ -45,7 +42,10 @@ export interface ParseUUIDPipeOptions {
+  * @publicApi
+  */
+ @Injectable()
+-export class ParseUUIDPipe implements PipeTransform<string> {
++export class ParseUUIDPipe
++  extends ParsePipe<ParseUUIDPipeOptions>
++  implements PipeTransform<string>
++{
+   protected static uuidRegExps = {
+     3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+     4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+@@ -54,25 +54,15 @@ export class ParseUUIDPipe implements PipeTransform<string> {
+     all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+   };
+   private readonly version: '3' | '4' | '5' | '7' | undefined;
+-  protected exceptionFactory: (errors: string) => any;
+-
+-  constructor(@Optional() protected readonly options?: ParseUUIDPipeOptions) {
+-    options = options || {};
+-    const {
+-      exceptionFactory,
+-      errorHttpStatusCode = HttpStatus.BAD_REQUEST,
+-      version,
+-    } = options;
+ 
+-    this.version = version;
+-    this.exceptionFactory =
+-      exceptionFactory ||
+-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
++  constructor(@Optional() options?: ParseUUIDPipeOptions) {
++    super(options);
++    this.version = this.options.version;
+   }
+ 
+   async transform(value: string, metadata: ArgumentMetadata): Promise<string> {
+-    if (isNil(value) && this.options?.optional) {
+-      return value;
++    if (this.isOptionallyNil(value)) {
++      return this.getOptionalValue<string>(value);
+     }
+     if (!this.isUUID(value, this.version)) {
+       throw this.exceptionFactory(

@@ -1,15 +1,11 @@
 import { Injectable } from '../decorators/core/injectable.decorator';
 import { Optional } from '../decorators/core/optional.decorator';
-import { HttpStatus } from '../enums/http-status.enum';
 import {
   ArgumentMetadata,
   PipeTransform,
 } from '../interfaces/features/pipe-transform.interface';
-import {
-  ErrorHttpStatusCode,
-  HttpErrorByCode,
-} from '../utils/http-error-by-code.util';
-import { isNil } from '../utils/shared.utils';
+import { ErrorHttpStatusCode } from '../utils/http-error-by-code.util';
+import { ParsePipe } from './parse.pipe';
 
 /**
  * @publicApi
@@ -41,19 +37,12 @@ export interface ParseBoolPipeOptions {
  * @publicApi
  */
 @Injectable()
-export class ParseBoolPipe implements PipeTransform<
-  string | boolean,
-  Promise<boolean>
-> {
-  protected exceptionFactory: (error: string) => any;
-
-  constructor(@Optional() protected readonly options?: ParseBoolPipeOptions) {
-    options = options || {};
-    const { exceptionFactory, errorHttpStatusCode = HttpStatus.BAD_REQUEST } =
-      options;
-    this.exceptionFactory =
-      exceptionFactory ||
-      (error => new HttpErrorByCode[errorHttpStatusCode](error));
+export class ParseBoolPipe
+  extends ParsePipe<ParseBoolPipeOptions>
+  implements PipeTransform<string | boolean, Promise<boolean>>
+{
+  constructor(@Optional() options?: ParseBoolPipeOptions) {
+    super(options);
   }
 
   /**
@@ -67,8 +56,8 @@ export class ParseBoolPipe implements PipeTransform<
     value: string | boolean,
     metadata: ArgumentMetadata,
   ): Promise<boolean> {
-    if (isNil(value) && this.options?.optional) {
-      return value;
+    if (this.isOptionallyNil(value)) {
+      return this.getOptionalValue<boolean>(value);
     }
     if (this.isTrue(value)) {
       return true;
