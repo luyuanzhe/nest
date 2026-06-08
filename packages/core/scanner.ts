@@ -9,8 +9,13 @@ import {
   INJECTABLE_WATERMARK,
   INTERCEPTORS_METADATA,
   MODULE_METADATA,
+  OPTIONAL_DEPS_METADATA,
+  OPTIONAL_PROPERTY_DEPS_METADATA,
+  PARAMTYPES_METADATA,
+  PROPERTY_DEPS_METADATA,
   PIPES_METADATA,
   ROUTE_ARGS_METADATA,
+  SELF_DECLARED_DEPS_METADATA,
 } from '@nestjs/common/constants';
 import {
   CanActivate,
@@ -26,11 +31,13 @@ import {
   Scope,
   Type,
   ValueProvider,
+  ForwardReference as ForwardRefType,
 } from '@nestjs/common/interfaces';
 import {
   isFunction,
   isNil,
   isUndefined,
+  isObject,
 } from '@nestjs/common/utils/shared.utils';
 import { iterate } from 'iterare';
 import { ApplicationConfig } from './application-config';
@@ -100,7 +107,181 @@ export class DependenciesScanner {
     // Global modules have their distance set to MAX anyway.
     this.calculateModulesDistance();
 
+    // Static cyclic dependency check
+    this.checkForCyclicDependencies();
+
     this.container.bindGlobalScope();
+  }
+
+  private checkForCyclicDependencies() {
+    const modules = this.container.getModules();
+    const tokenToWrapper = new Map<InjectionToken, InstanceWrapper>();
+    const tokenToName = new Map<InjectionToken, string>();
+
+    // First build a map of all tokens to wrapper and name
+    for (const [, module] of modules) {
+      for (const [token, wrapper] of module.providers) {
+        tokenToWrapper.set(token, wrapper);
+        tokenToName.set(token, this.getTokenName(token));
+      }
+      for (const [token, wrapper] of module.controllers) {
+        tokenToWrapper.set(token, wrapper);
+        tokenToName.set(token, this.getTokenName(token));
+      }
+      for (const [token, wrapper] of module.injectables) {
+        tokenToWrapper.set(token, wrapper);
+        tokenToName.set(token, this.getTokenName(token));
+      }
+    }
+
+    // Now check each wrapper for cyclic dependencies
+    const visited = new Set<string>();
+    const recursionStack = new Set<string>();
+    const path: string[] = [];
+
+    for (const [token, wrapper] of tokenToWrapper) {
+      if (!wrapper.forwardRef && !wrapper.isResolved) {
+        this.detectCycles(
+          token,
+          wrapper,
+          tokenToWrapper,
+          tokenToName,
+          visited,
+          recursionStack,
+          path,
+        );
+      }
+    }
+  }
+
+  private detectCycles(
+    token: InjectionToken,
+    wrapper: InstanceWrapper,
+    tokenToWrapper: Map<InjectionToken, InstanceWrapper>,
+    tokenToName: Map<InjectionToken, string>,
+    visited: Set<string>,
+    recursionStack: Set<string>,
+    path: string[],
+  ): boolean {
+    const tokenKey = this.getTokenKey(token);
+    const name = tokenToName.get(token) || 'Unknown';
+
+    if (visited.has(tokenKey)) {
+      if (recursionStack.has(tokenKey)) {
+        // Found a cycle
+        const cycleStartIndex = path.indexOf(name);
+        const cyclePath = path.slice(cycleStartIndex).concat(name);
+        throw new CircularDependencyException(
+          `Circular dependency detected: ${cyclePath.join(' -> ')}`,
+        );
+      }
+      return false;
+    }
+
+    visited.add(tokenKey);
+    recursionStack.add(tokenKey);
+    path.push(name);
+
+    // Get dependencies
+    const dependencies = this.getDependencies(wrapper);
+    for (const dep of dependencies) {
+      if (!dep) continue;
+      
+      const resolvedToken = this.resolveToken(dep);
+      const isForwardRef = this.isForwardRefToken(dep);
+      
+      if (!isForwardRef && tokenToWrapper.has(resolvedToken)) {
+        const depWrapper = tokenToWrapper.get(resolvedToken)!;
+        if (this.detectCycles(
+          resolvedToken,
+          depWrapper,
+          tokenToWrapper,
+          tokenToName,
+          visited,
+          recursionStack,
+          path,
+        )) {
+          return true;
+        }
+      }
+    }
+
+    path.pop();
+    recursionStack.delete(tokenKey);
+    return false;
+  }
+
+  private getDependencies(wrapper: InstanceWrapper): any[] {
+    const dependencies: any[] = [];
+
+    // Check for factory provider with explicit inject
+    if (wrapper.inject) {
+      for (const injectDep of wrapper.inject) {
+        const actualDep = this.isOptionalFactoryDependency(injectDep)
+          ? (injectDep as any).token
+          : injectDep;
+        dependencies.push(actualDep);
+      }
+      return dependencies;
+    }
+
+    // Check for class provider/controllers/injectables
+    if (wrapper.metatype && isFunction(wrapper.metatype)) {
+      // Get constructor parameter types
+      const paramTypes = Reflect.getMetadata(PARAMTYPES_METADATA, wrapper.metatype) || [];
+      const selfDeclaredDeps = Reflect.getMetadata(SELF_DECLARED_DEPS_METADATA, wrapper.metatype) || [];
+      
+      // Merge self declared dependencies
+      const mergedDeps = [...paramTypes];
+      selfDeclaredDeps.forEach(({ index, param }) => {
+        mergedDeps[index] = param;
+      });
+
+      dependencies.push(...mergedDeps);
+
+      // Get property dependencies
+      const propertyDeps = Reflect.getMetadata(PROPERTY_DEPS_METADATA, wrapper.metatype) || [];
+      propertyDeps.forEach(({ type }) => {
+        dependencies.push(type);
+      });
+    }
+
+    return dependencies.filter(dep => !isNil(dep));
+  }
+
+  private isOptionalFactoryDependency(value: any): boolean {
+    return isObject(value) && !isUndefined((value as any).token);
+  }
+
+  private resolveToken(token: any): InjectionToken {
+    if (this.isForwardRefToken(token)) {
+      return (token as ForwardRefType).forwardRef();
+    }
+    return token;
+  }
+
+  private isForwardRefToken(token: any): boolean {
+    return isObject(token) && isFunction((token as any).forwardRef);
+  }
+
+  private getTokenKey(token: InjectionToken): string {
+    if (isFunction(token)) {
+      return `fn:${token.name}`;
+    }
+    if (isObject(token) || typeof token === 'symbol') {
+      return String(token);
+    }
+    return `token:${token}`;
+  }
+
+  private getTokenName(token: InjectionToken): string {
+    if (isFunction(token)) {
+      return token.name;
+    }
+    if (typeof token === 'symbol') {
+      return token.toString();
+    }
+    return String(token);
   }
 
   public async scanForModules({
