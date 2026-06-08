@@ -1,0 +1,17 @@
+diff --git a/packages/websockets/errors/index.ts b/packages/websockets/errors/index.ts
+index 83185f3a6..4b096a191 100644
+--- a/packages/websockets/errors/index.ts
++++ b/packages/websockets/errors/index.ts
+@@ -1 +1,2 @@
+ export * from './ws-exception';
++export * from './ws-timeout-exception';
+diff --git a/packages/websockets/index.ts b/packages/websockets/index.ts
+index c831a18b2..55882be84 100644
+--- a/packages/websockets/index.ts
++++ b/packages/websockets/index.ts
+@@ -11,4 +11,5 @@ export * from './decorators';
+ export * from './errors';
+ export * from './exceptions';
+ export { MessageMappingProperties } from './gateway-metadata-explorer';
++export * from './interceptors';
+ export * from './interfaces';
