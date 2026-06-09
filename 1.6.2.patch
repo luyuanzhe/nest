@@ -1,0 +1,192 @@
+diff --git a/.circleci/config.yml b/.circleci/config.yml
+index 0e5dc94fb..9c4789ce2 100644
+--- a/.circleci/config.yml
++++ b/.circleci/config.yml
+@@ -37,7 +37,7 @@ aliases:
+   - &run-unit-tests
+     run:
+       name: Test
+-      command: npm run test
++      command: npm run test -- --parallel
+ 
+ jobs:
+   build:
+diff --git a/gulpfile.js b/gulpfile.js
+index a0962e1a3..041d4f4c2 100644
+--- a/gulpfile.js
++++ b/gulpfile.js
+@@ -10,7 +10,8 @@ const projectDir = __dirname;
+ const tsconfigPath = path.join(projectDir, 'tools/gulp/tsconfig.json');
+ 
+ require('ts-node').register({
+-  project: tsconfigPath
++  project: tsconfigPath,
++  transpileOnly: true
+ });
+ 
+ require('./tools/gulp/gulpfile');
+\ No newline at end of file
+diff --git a/lerna.json b/lerna.json
+index 0ce7ffcbf..027157c61 100644
+--- a/lerna.json
++++ b/lerna.json
+@@ -1,5 +1,6 @@
+ {
+   "packages": ["packages/*"],
+   "version": "11.1.24",
++  "useNx": true,
+   "$schema": "node_modules/lerna/schemas/lerna-schema.json"
+ }
+diff --git a/package.json b/package.json
+index beec06dd6..321082dbd 100644
+--- a/package.json
++++ b/package.json
+@@ -36,6 +36,7 @@
+     "test:docker:wait:rmq": "node scripts/wait-for-rabbitmq.js",
+     "test:docker:down": "node scripts/docker-compose.js -f integration/docker-compose.yml down",
+     "lint": "concurrently 'npm run lint:packages' 'npm run lint:integration' 'npm run lint:spec'",
++
+     "lint:fix": "concurrently 'npm run lint:packages -- --fix' 'npm run lint:integration -- --fix' 'npm run lint:spec -- --fix'",
+     "lint:integration": "node --max-old-space-size=4096 ./node_modules/.bin/eslint 'integration/**/*.ts'",
+     "lint:packages": "node --max-old-space-size=4096 ./node_modules/.bin/eslint 'packages/**/**.ts' --ignore-pattern 'packages/**/*.spec.ts'",
+@@ -238,5 +239,14 @@
+       "hooks/mocha-init-hook.ts"
+     ],
+     "exit": true
++  },
++  "nx": {
++    "targetDefaults": {
++      "build": {
++        "dependsOn": ["^build"],
++        "cache": true,
++        "command": "tsc -b tsconfig.build.json"
++      }
++    }
+   }
+ }
+diff --git a/packages/common/package.json b/packages/common/package.json
+index 951f01ee0..1f959c053 100644
+--- a/packages/common/package.json
++++ b/packages/common/package.json
+@@ -16,6 +16,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "license": "MIT",
+   "dependencies": {
+     "file-type": "21.3.4",
+diff --git a/packages/core/package.json b/packages/core/package.json
+index d05d613d8..a014f1847 100644
+--- a/packages/core/package.json
++++ b/packages/core/package.json
+@@ -20,6 +20,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "dependencies": {
+     "fast-safe-stringify": "2.1.1",
+     "iterare": "1.2.1",
+diff --git a/packages/microservices/package.json b/packages/microservices/package.json
+index eefe89cfe..ce7cb12c1 100644
+--- a/packages/microservices/package.json
++++ b/packages/microservices/package.json
+@@ -17,6 +17,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "dependencies": {
+     "iterare": "1.2.1",
+     "tslib": "2.8.1"
+diff --git a/packages/platform-express/package.json b/packages/platform-express/package.json
+index 7ecaf3e70..89bfb0754 100644
+--- a/packages/platform-express/package.json
++++ b/packages/platform-express/package.json
+@@ -17,6 +17,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "dependencies": {
+     "cors": "2.8.6",
+     "express": "5.2.1",
+diff --git a/packages/platform-fastify/package.json b/packages/platform-fastify/package.json
+index e4cdbbb69..afe6c7013 100644
+--- a/packages/platform-fastify/package.json
++++ b/packages/platform-fastify/package.json
+@@ -17,6 +17,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "dependencies": {
+     "@fastify/cors": "11.2.0",
+     "@fastify/formbody": "8.0.2",
+diff --git a/packages/platform-socket.io/package.json b/packages/platform-socket.io/package.json
+index ce73a208d..f210aa283 100644
+--- a/packages/platform-socket.io/package.json
++++ b/packages/platform-socket.io/package.json
+@@ -17,6 +17,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "dependencies": {
+     "socket.io": "4.8.3",
+     "tslib": "2.8.1"
+diff --git a/packages/platform-ws/package.json b/packages/platform-ws/package.json
+index d2fe8b5af..d9174103d 100644
+--- a/packages/platform-ws/package.json
++++ b/packages/platform-ws/package.json
+@@ -17,6 +17,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "dependencies": {
+     "tslib": "2.8.1",
+     "ws": "8.21.0"
+diff --git a/packages/testing/package.json b/packages/testing/package.json
+index a142da8bd..613d389db 100644
+--- a/packages/testing/package.json
++++ b/packages/testing/package.json
+@@ -17,6 +17,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "dependencies": {
+     "tslib": "2.8.1"
+   },
+diff --git a/packages/websockets/package.json b/packages/websockets/package.json
+index 334c80155..1f3e87e2a 100644
+--- a/packages/websockets/package.json
++++ b/packages/websockets/package.json
+@@ -12,6 +12,9 @@
+   "publishConfig": {
+     "access": "public"
+   },
++  "scripts": {
++    "build": "tsc -b tsconfig.build.json"
++  },
+   "dependencies": {
+     "iterare": "1.2.1",
+     "object-hash": "3.0.0",

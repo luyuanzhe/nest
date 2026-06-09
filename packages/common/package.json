@@ -16,6 +16,9 @@
   "publishConfig": {
     "access": "public"
   },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json"
+  },
   "license": "MIT",
   "dependencies": {
     "file-type": "21.3.4",

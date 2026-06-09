@@ -20,6 +20,9 @@
   "publishConfig": {
     "access": "public"
   },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json"
+  },
   "dependencies": {
     "fast-safe-stringify": "2.1.1",
     "iterare": "1.2.1",
