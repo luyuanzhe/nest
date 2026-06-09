@@ -30,6 +30,7 @@ export type MicroserviceOptions =
   | MqttOptions
   | RmqOptions
   | KafkaOptions
+  | PulsarOptions
   | CustomStrategy;
 
 export type TransportId = Transport | symbol;
@@ -354,3 +355,18 @@ export interface KafkaOptions {
     producerOnlyMode?: boolean;
   };
 }
+
+/**
+ * @publicApi
+ */
+export interface PulsarOptions {
+  transport?: Transport.PULSAR;
+  options?: {
+    client?: PulsarClientOptions;
+    consumer?: PulsarConsumerOptions;
+    producer?: PulsarProducerOptions;
+    serializer?: Serializer;
+    deserializer?: Deserializer;
+  };
+}
+

@@ -67,6 +67,10 @@ export class ClientProxyFactory {
         ) as ClientProxy;
       case Transport.KAFKA:
         return new ClientKafka(options as Required<KafkaOptions>['options']);
+      case Transport.PULSAR:
+        return new ClientPulsar(options as Required<PulsarOptions>['options']);
+      case Transport.RMQ:
+        return new ClientRMQ(options as Required<RmqOptions>['options']);
       default:
         return new ClientTCP(
           options as Required<TcpClientOptions>['options'],

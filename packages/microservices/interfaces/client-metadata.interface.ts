@@ -9,6 +9,7 @@ import {
   KafkaOptions,
   MqttOptions,
   NatsOptions,
+  PulsarOptions,
   RedisOptions,
   RmqOptions,
 } from './microservice-configuration.interface';

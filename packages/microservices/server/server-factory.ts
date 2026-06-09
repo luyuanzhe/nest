@@ -34,6 +34,8 @@ export class ServerFactory {
         return new ServerGrpc(options);
       case Transport.KAFKA:
         return new ServerKafka(options as Required<KafkaOptions>['options']);
+      case Transport.PULSAR:
+        return new ServerPulsar(options as Required<PulsarOptions>['options']);
       case Transport.RMQ:
         return new ServerRMQ(options as Required<RmqOptions>['options']);
       default:
