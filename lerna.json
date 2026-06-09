@@ -1,5 +1,15 @@
 {
   "packages": ["packages/*"],
   "version": "11.1.24",
-  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
+  "command": {
+    "run": {
+      "concurrency": 0,
+      "stream": true
+    },
+    "exec": {
+      "concurrency": 0
+    }
+  },
+  "cacheDir": ".lerna-cache"
 }

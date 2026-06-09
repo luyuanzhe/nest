@@ -34,6 +34,15 @@ aliases:
     run:
       name: Build
       command: npm run build
+  - &persist-workspace
+    persist_to_workspace:
+      root: ~/
+      paths:
+        - nest/node_modules
+        - nest/packages
+  - &attach-workspace
+    attach_workspace:
+      at: ~/
   - &run-unit-tests
     run:
       name: Test
@@ -53,6 +62,7 @@ jobs:
       - *install-deps
       - *save-cache
       - *build-packages
+      - *persist-workspace
 
   test:
     parameters:
@@ -88,9 +98,7 @@ jobs:
               - << pipeline.parameters.check-legacy-node-version >>
           steps:
             - checkout
-            - *restore-cache
-            - *install-deps
-            - *build-packages
+            - *attach-workspace
             - when:
                 condition:
                   equal:
@@ -135,6 +143,7 @@ jobs:
     machine: true
     steps:
       - checkout
+      - *attach-workspace
       - run:
           name: Prepare nvm
           command: |
@@ -152,7 +161,6 @@ jobs:
             curl -L https://github.com/docker/compose/releases/download/1.19.0/docker-compose-`uname -s`-`uname -m` > ~/docker-compose
             chmod +x ~/docker-compose
             sudo mv ~/docker-compose /usr/local/bin/docker-compose
-      - *install-deps
       - run:
           name: Prepare tests
           command: bash ./scripts/prepare.sh
@@ -175,8 +183,7 @@ jobs:
       REDIS_PORT: 6379
     steps:
       - checkout
-      - *restore-cache
-      - *install-deps
+      - *attach-workspace
       - run:
           name: Build all samples
           command: npm run build:samples
@@ -186,6 +193,7 @@ workflows:
   build-and-test:
     jobs:
       - build
+      - lint
       - test:
           requires:
             - build
@@ -198,9 +206,6 @@ workflows:
                   '<< pipeline.parameters.active-node-version >>',
                   '<< pipeline.parameters.current-node-version >>',
                 ]
-      - lint:
-          requires:
-            - build
       - integration_tests:
           requires:
             - build

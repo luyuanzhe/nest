@@ -1,0 +1,146 @@
+diff --git a/.circleci/config.yml b/.circleci/config.yml
+index 0e5dc94fb..df526c87e 100644
+--- a/.circleci/config.yml
++++ b/.circleci/config.yml
+@@ -34,6 +34,15 @@ aliases:
+     run:
+       name: Build
+       command: npm run build
++  - &persist-workspace
++    persist_to_workspace:
++      root: ~/
++      paths:
++        - nest/node_modules
++        - nest/packages
++  - &attach-workspace
++    attach_workspace:
++      at: ~/
+   - &run-unit-tests
+     run:
+       name: Test
+@@ -53,6 +62,7 @@ jobs:
+       - *install-deps
+       - *save-cache
+       - *build-packages
++      - *persist-workspace
+ 
+   test:
+     parameters:
+@@ -88,9 +98,7 @@ jobs:
+               - << pipeline.parameters.check-legacy-node-version >>
+           steps:
+             - checkout
+-            - *restore-cache
+-            - *install-deps
+-            - *build-packages
++            - *attach-workspace
+             - when:
+                 condition:
+                   equal:
+@@ -135,6 +143,7 @@ jobs:
+     machine: true
+     steps:
+       - checkout
++      - *attach-workspace
+       - run:
+           name: Prepare nvm
+           command: |
+@@ -152,7 +161,6 @@ jobs:
+             curl -L https://github.com/docker/compose/releases/download/1.19.0/docker-compose-`uname -s`-`uname -m` > ~/docker-compose
+             chmod +x ~/docker-compose
+             sudo mv ~/docker-compose /usr/local/bin/docker-compose
+-      - *install-deps
+       - run:
+           name: Prepare tests
+           command: bash ./scripts/prepare.sh
+@@ -175,8 +183,7 @@ jobs:
+       REDIS_PORT: 6379
+     steps:
+       - checkout
+-      - *restore-cache
+-      - *install-deps
++      - *attach-workspace
+       - run:
+           name: Build all samples
+           command: npm run build:samples
+@@ -186,6 +193,7 @@ workflows:
+   build-and-test:
+     jobs:
+       - build
++      - lint
+       - test:
+           requires:
+             - build
+@@ -198,12 +206,9 @@ workflows:
+                   '<< pipeline.parameters.active-node-version >>',
+                   '<< pipeline.parameters.current-node-version >>',
+                 ]
+-      - lint:
+-          requires:
+-            - build
+       - integration_tests:
+           requires:
+             - build
+       - samples:
+           requires:
+-            - build
++            - build
+\ No newline at end of file
+diff --git a/lerna.json b/lerna.json
+index 0ce7ffcbf..5864c8190 100644
+--- a/lerna.json
++++ b/lerna.json
+@@ -1,5 +1,15 @@
+ {
+   "packages": ["packages/*"],
+   "version": "11.1.24",
+-  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
++  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
++  "command": {
++    "run": {
++      "concurrency": 0,
++      "stream": true
++    },
++    "exec": {
++      "concurrency": 0
++    }
++  },
++  "cacheDir": ".lerna-cache"
+ }
+diff --git a/package.json b/package.json
+index beec06dd6..fe85a3aa7 100644
+--- a/package.json
++++ b/package.json
+@@ -15,7 +15,7 @@
+   "author": "Kamil Mysliwiec",
+   "scripts": {
+     "build": "tsc -b -v packages",
+-    "postbuild": "npm run move:node_modules",
++    "postbuild": "gulp move:all",
+     "build:dev": "tsc -b -v packages --watch",
+     "prebuild:prod": "npm run clean",
+     "build:prod": "tsc -b -v packages",
+@@ -23,7 +23,8 @@
+     "clean": "tsc -b --clean packages",
+     "move:samples": "gulp move:samples",
+     "move:node_modules": "gulp move:node_modules",
+-    "build:samples": "gulp install:samples && npm run build && npm run move:samples && gulp build:samples && gulp test:samples && gulp test:e2e:samples",
++    "move:all": "gulp move:all",
++    "build:samples": "gulp install:samples && npm run build && gulp move:all && gulp build:samples && gulp test:samples && gulp test:e2e:samples",
+     "codechecks:benchmarks": "codechecks ./tools/benchmarks/check-benchmarks.ts",
+     "coverage": "nyc report --reporter=text-lcov | coveralls -v",
+     "format": "prettier \"**/*.ts\" \"packages/**/*.json\" --ignore-path ./.prettierignore --write && git status",
+diff --git a/tools/gulp/gulpfile.ts b/tools/gulp/gulpfile.ts
+index 1e6200761..593e4870d 100644
+--- a/tools/gulp/gulpfile.ts
++++ b/tools/gulp/gulpfile.ts
+@@ -1,4 +1,9 @@
++import { parallel, series, task } from 'gulp';
+ import './tasks/clean';
+ import './tasks/copy-misc';
+ import './tasks/move';
+ import './tasks/samples';
++
++task('move:all', parallel('move:node_modules', 'move:samples'));
++
++task('prerelease:gulp', series('clean:bundle', 'copy-misc'));
