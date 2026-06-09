@@ -1,0 +1,55 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "parallel": 5,
+  "cacheDirectory": "node_modules/.cache/nx",
+  "namedInputs": {
+    "sharedGlobals": [
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/package-lock.json",
+      "{workspaceRoot}/tsconfig.json",
+      "{workspaceRoot}/lerna.json",
+      "{workspaceRoot}/gulpfile.js"
+    ],
+    "default": [
+      "{projectRoot}/**/*.ts",
+      "{projectRoot}/package.json",
+      "{projectRoot}/tsconfig*.json",
+      "sharedGlobals"
+    ],
+    "production": [
+      "{projectRoot}/**/*.ts",
+      "{projectRoot}/package.json",
+      "{projectRoot}/tsconfig*.json",
+      "!{projectRoot}/**/*.spec.ts",
+      "!{projectRoot}/test/**/*",
+      "sharedGlobals"
+    ]
+  },
+  "targetDefaults": {
+    "build": {
+      "cache": true,
+      "inputs": ["production", "^production"],
+      "outputs": [
+        "{projectRoot}/**/*.js",
+        "{projectRoot}/**/*.d.ts",
+        "{projectRoot}/**/*.js.map",
+        "{projectRoot}/*.tsbuildinfo"
+      ]
+    },
+    "test": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/hooks/**/*"
+      ]
+    },
+    "lint": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/eslint.config.mjs"
+      ]
+    }
+  }
+}

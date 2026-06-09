@@ -1,5 +1,16 @@
 {
   "packages": ["packages/*"],
+  "npmClient": "npm",
   "version": "11.1.24",
-  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
+  "command": {
+    "exec": {
+      "concurrency": 5,
+      "stream": true
+    },
+    "run": {
+      "concurrency": 5,
+      "stream": true
+    }
+  }
 }

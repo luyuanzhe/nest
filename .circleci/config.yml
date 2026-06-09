@@ -20,10 +20,10 @@ parameters:
 aliases:
   - &restore-cache
     restore_cache:
-      key: dependency-cache-{{ checksum "package.json" }}
+      key: dependency-cache-v2-{{ checksum "package-lock.json" }}
   - &save-cache
     save_cache:
-      key: dependency-cache-{{ checksum "package.json" }}
+      key: dependency-cache-v2-{{ checksum "package-lock.json" }}
       paths:
         - ./node_modules
   - &install-deps
@@ -37,7 +37,9 @@ aliases:
   - &run-unit-tests
     run:
       name: Test
-      command: npm run test
+      command: |
+        circleci tests glob "packages/**/*.spec.ts" \
+          | circleci tests run --command="xargs node --loader ts-node/esm ./node_modules/mocha/bin/mocha.js" --split-by=timings
 
 jobs:
   build:
@@ -54,11 +56,12 @@ jobs:
       - *save-cache
       - *build-packages
 
-  test:
+  test_units:
     parameters:
       node-version:
         type: string
     working_directory: ~/nest
+    parallelism: 4
     docker:
       - image: cimg/node:<< parameters.node-version >>
     steps:
@@ -90,33 +93,24 @@ jobs:
             - checkout
             - *restore-cache
             - *install-deps
-            - *build-packages
-            - when:
-                condition:
-                  equal:
-                    [
-                      '<< parameters.node-version >>',
-                      '<< pipeline.parameters.maintenance-node-version >>',
-                    ]
-                steps:
-                  - run:
-                      name: Test (coverage)
-                      command: npm run test:cov
-                  - run:
-                      name: Collect coverage
-                      command: npm run coverage
-                  - store_artifacts:
-                      path: coverage
-            - when:
-                condition:
-                  not:
-                    equal:
-                      [
-                        '<< parameters.node-version >>',
-                        '<< pipeline.parameters.maintenance-node-version >>',
-                      ]
-                steps:
-                  - *run-unit-tests
+            - *run-unit-tests
+
+  test_coverage:
+    working_directory: ~/nest
+    docker:
+      - image: cimg/node:<< pipeline.parameters.maintenance-node-version >>
+    steps:
+      - checkout
+      - *restore-cache
+      - *install-deps
+      - run:
+          name: Test (coverage)
+          command: npm run test:cov
+      - run:
+          name: Collect coverage
+          command: npm run coverage
+      - store_artifacts:
+          path: coverage
 
   lint:
     working_directory: ~/nest
@@ -186,7 +180,7 @@ workflows:
   build-and-test:
     jobs:
       - build
-      - test:
+      - test_units:
           requires:
             - build
           matrix:
@@ -194,10 +188,12 @@ workflows:
               node-version:
                 [
                   '<< pipeline.parameters.legacy-node-version >>',
-                  '<< pipeline.parameters.maintenance-node-version >>',
                   '<< pipeline.parameters.active-node-version >>',
                   '<< pipeline.parameters.current-node-version >>',
                 ]
+      - test_coverage:
+          requires:
+            - build
       - lint:
           requires:
             - build
