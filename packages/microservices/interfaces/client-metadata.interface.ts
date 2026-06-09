@@ -9,6 +9,7 @@ import {
   KafkaOptions,
   MqttOptions,
   NatsOptions,
+  PulsarOptions,
   RedisOptions,
   RmqOptions,
 } from './microservice-configuration.interface';
@@ -21,7 +22,8 @@ export type ClientOptions =
   | GrpcOptions
   | KafkaOptions
   | TcpClientOptions
-  | RmqOptions;
+  | RmqOptions
+  | PulsarOptions;
 
 /**
  * @publicApi

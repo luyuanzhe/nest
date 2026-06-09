@@ -21,6 +21,7 @@ import {
   MsPattern,
   NatsOptions,
   PacketId,
+  PulsarOptions,
   ReadPacket,
   RedisOptions,
   RmqOptions,
@@ -214,7 +215,8 @@ export abstract class ClientProxy<
           | MqttOptions['options']
           | TcpClientOptions['options']
           | RmqOptions['options']
-          | KafkaOptions['options'])!.serializer) ||
+          | KafkaOptions['options']
+          | PulsarOptions['options'])!.serializer) ||
       new IdentitySerializer();
   }
 
@@ -227,7 +229,8 @@ export abstract class ClientProxy<
           | MqttOptions['options']
           | TcpClientOptions['options']
           | RmqOptions['options']
-          | KafkaOptions['options'])!.deserializer) ||
+          | KafkaOptions['options']
+          | PulsarOptions['options'])!.deserializer) ||
       new IncomingResponseDeserializer();
   }
 }

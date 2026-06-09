@@ -30,6 +30,7 @@ export type MicroserviceOptions =
   | MqttOptions
   | RmqOptions
   | KafkaOptions
+  | PulsarOptions
   | CustomStrategy;
 
 export type TransportId = Transport | symbol;
@@ -352,5 +353,145 @@ export interface KafkaOptions {
     deserializer?: Deserializer;
     parser?: KafkaParserConfig;
     producerOnlyMode?: boolean;
+  };
+}
+
+/**
+ * @publicApi
+ */
+export interface PulsarOptions {
+  transport?: Transport.PULSAR;
+  options?: {
+    /**
+     * Pulsar broker service URL.
+     * @default 'pulsar://localhost:6650'
+     */
+    serviceUrl?: string;
+    /**
+     * Token-based authentication string.
+     */
+    authentication?: any;
+    /**
+     * TLS trust certificate file path.
+     */
+    tlsTrustCertsFilePath?: string;
+    /**
+     * Whether to enable TLS.
+     */
+    tlsAllowInsecureConnection?: boolean;
+    /**
+     * Whether to validate hostname against TLS certificate.
+     */
+    tlsValidateHostname?: boolean;
+    /**
+     * Operation timeout in seconds.
+     */
+    operationTimeoutSeconds?: number;
+    /**
+     * Connection timeout in seconds.
+     */
+    connectionTimeoutSeconds?: number;
+    /**
+     * The namespace for topics.
+     * @default 'public/default'
+     */
+    namespace?: string;
+    /**
+     * The topic name for consuming/producing messages.
+     * If not provided, pattern-based topic resolution is used.
+     */
+    topic?: string;
+    /**
+     * Subscription name for the consumer.
+     * @default 'nestjs-subscription'
+     */
+    subscription?: string;
+    /**
+     * Subscription type: Shared, Failover, Exclusive, Key_Shared.
+     * @default 'Shared'
+     */
+    subscriptionType?: 'Shared' | 'Failover' | 'Exclusive' | 'Key_Shared';
+    /**
+     * Subscription initial position: Earliest or Latest.
+     */
+    subscriptionInitialPosition?: 'Earliest' | 'Latest';
+    /**
+     * A serializer for the message payload.
+     */
+    serializer?: Serializer;
+    /**
+     * A deserializer for the message payload.
+     */
+    deserializer?: Deserializer;
+    /**
+     * Additional headers to be sent with every message.
+     */
+    headers?: Record<string, string>;
+    /**
+     * Producer configuration options.
+     */
+    producer?: {
+      /**
+       * Message routing mode for partitioned topics.
+       */
+      messageRoutingMode?: 'RoundRobinDistribution' | 'UseSinglePartition' | 'CustomPartition';
+      /**
+       * Whether to batch messages.
+       */
+      batchingEnabled?: boolean;
+      /**
+       * Maximum number of messages in a batch.
+       */
+      batchingMaxMessages?: number;
+      /**
+       * Maximum size of a batch in bytes.
+       */
+      batchingMaxPublishDelayMs?: number;
+      /**
+       * Maximum size of a batch in bytes.
+       */
+      batchingMaxBytes?: number;
+      /**
+       * Block if queue is full.
+       */
+      blockIfQueueFull?: boolean;
+      /**
+       * Max pending messages in the producer queue.
+       */
+      maxPendingMessages?: number;
+      /**
+       * Compression type: None, LZ4, ZLib, ZSTD, SNAPPY.
+       */
+      compressionType?: 'None' | 'LZ4' | 'ZLib' | 'ZSTD' | 'SNAPPY';
+    };
+    /**
+     * Consumer configuration options.
+     */
+    consumer?: {
+      /**
+       * Ack timeout in seconds.
+       */
+      ackTimeoutSeconds?: number;
+      /**
+       * Negative ack timeout in seconds.
+       */
+      nackTimeoutSeconds?: number;
+      /**
+       * Max number of messages that can be received but not yet acknowledged.
+       */
+      receiverQueueSize?: number;
+      /**
+       * Whether to read compacted topics.
+       */
+      readCompacted?: boolean;
+      /**
+       * Consumer name.
+       */
+      consumerName?: string;
+    };
+    /**
+     * Listener port for the admin HTTP API.
+     */
+    adminPort?: number;
   };
 }

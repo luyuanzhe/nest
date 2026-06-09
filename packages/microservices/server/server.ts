@@ -30,6 +30,7 @@ import {
   MqttOptions,
   MsPattern,
   NatsOptions,
+  PulsarOptions,
   ReadPacket,
   RedisOptions,
   RmqOptions,
@@ -303,7 +304,8 @@ export abstract class Server<
           | MqttOptions['options']
           | TcpOptions['options']
           | RmqOptions['options']
-          | KafkaOptions['options'])!.serializer) ||
+          | KafkaOptions['options']
+          | PulsarOptions['options'])!.serializer) ||
       new IdentitySerializer();
   }
 
@@ -316,7 +318,8 @@ export abstract class Server<
           | MqttOptions['options']
           | TcpOptions['options']
           | RmqOptions['options']
-          | KafkaOptions['options'])!.deserializer) ||
+          | KafkaOptions['options']
+          | PulsarOptions['options'])!.deserializer) ||
       new IncomingRequestDeserializer();
   }
 
