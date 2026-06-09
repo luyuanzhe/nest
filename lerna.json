@@ -1,5 +1,19 @@
 {
   "packages": ["packages/*"],
   "version": "11.1.24",
-  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
+  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
+  "npmClient": "npm",
+  "useNx": true,
+  "command": {
+    "build": {
+      "includeDependencies": true,
+      "includeDependents": false
+    },
+    "run": {
+      "parallel": true
+    },
+    "exec": {
+      "parallel": true
+    }
+  }
 }

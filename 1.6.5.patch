@@ -1,0 +1,100 @@
+diff --git a/.circleci/config.yml b/.circleci/config.yml
+index 0e5dc94fb..bf9665f07 100644
+--- a/.circleci/config.yml
++++ b/.circleci/config.yml
+@@ -26,6 +26,7 @@ aliases:
+       key: dependency-cache-{{ checksum "package.json" }}
+       paths:
+         - ./node_modules
++        - ./.nx/cache
+   - &install-deps
+     run:
+       name: Install dependencies
+@@ -33,7 +34,7 @@ aliases:
+   - &build-packages
+     run:
+       name: Build
+-      command: npm run build
++      command: npm run build:parallel
+   - &run-unit-tests
+     run:
+       name: Test
+@@ -187,8 +188,6 @@ workflows:
+     jobs:
+       - build
+       - test:
+-          requires:
+-            - build
+           matrix:
+             parameters:
+               node-version:
+diff --git a/gulpfile.js b/gulpfile.js
+index a0962e1a3..9776620f5 100644
+--- a/gulpfile.js
++++ b/gulpfile.js
+@@ -10,7 +10,9 @@ const projectDir = __dirname;
+ const tsconfigPath = path.join(projectDir, 'tools/gulp/tsconfig.json');
+ 
+ require('ts-node').register({
+-  project: tsconfigPath
++  project: tsconfigPath,
++  transpileOnly: true,
++  files: true
+ });
+ 
+ require('./tools/gulp/gulpfile');
+\ No newline at end of file
+diff --git a/lerna.json b/lerna.json
+index 0ce7ffcbf..af939c9a1 100644
+--- a/lerna.json
++++ b/lerna.json
+@@ -1,5 +1,19 @@
+ {
+   "packages": ["packages/*"],
+   "version": "11.1.24",
+-  "$schema": "node_modules/lerna/schemas/lerna-schema.json"
++  "$schema": "node_modules/lerna/schemas/lerna-schema.json",
++  "npmClient": "npm",
++  "useNx": true,
++  "command": {
++    "build": {
++      "includeDependencies": true,
++      "includeDependents": false
++    },
++    "run": {
++      "parallel": true
++    },
++    "exec": {
++      "parallel": true
++    }
++  }
+ }
+diff --git a/package.json b/package.json
+index beec06dd6..e4cb5debe 100644
+--- a/package.json
++++ b/package.json
+@@ -15,10 +15,11 @@
+   "author": "Kamil Mysliwiec",
+   "scripts": {
+     "build": "tsc -b -v packages",
++    "build:parallel": "tsc -b -v packages --incremental",
+     "postbuild": "npm run move:node_modules",
+     "build:dev": "tsc -b -v packages --watch",
+     "prebuild:prod": "npm run clean",
+-    "build:prod": "tsc -b -v packages",
++    "build:prod": "tsc -b -v packages --incremental",
+     "changelog": "lerna-changelog",
+     "clean": "tsc -b --clean packages",
+     "move:samples": "gulp move:samples",
+diff --git a/tools/gulp/gulpfile.ts b/tools/gulp/gulpfile.ts
+index 1e6200761..baed9b9d8 100644
+--- a/tools/gulp/gulpfile.ts
++++ b/tools/gulp/gulpfile.ts
+@@ -2,3 +2,7 @@ import './tasks/clean';
+ import './tasks/copy-misc';
+ import './tasks/move';
+ import './tasks/samples';
++
++import { parallel, series } from 'gulp';
++
++export { parallel, series };

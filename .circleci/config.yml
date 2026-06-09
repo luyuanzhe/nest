@@ -26,6 +26,7 @@ aliases:
       key: dependency-cache-{{ checksum "package.json" }}
       paths:
         - ./node_modules
+        - ./.nx/cache
   - &install-deps
     run:
       name: Install dependencies
@@ -33,7 +34,7 @@ aliases:
   - &build-packages
     run:
       name: Build
-      command: npm run build
+      command: npm run build:parallel
   - &run-unit-tests
     run:
       name: Test
@@ -187,8 +188,6 @@ workflows:
     jobs:
       - build
       - test:
-          requires:
-            - build
           matrix:
             parameters:
               node-version:
