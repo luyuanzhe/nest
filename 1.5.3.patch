@@ -1,0 +1,271 @@
+diff --git a/packages/microservices/client/client-proxy-factory.ts b/packages/microservices/client/client-proxy-factory.ts
+index ab7abccb0..bc7c1ce2e 100644
+--- a/packages/microservices/client/client-proxy-factory.ts
++++ b/packages/microservices/client/client-proxy-factory.ts
+@@ -10,6 +10,7 @@ import {
+   KafkaOptions,
+   MqttOptions,
+   NatsOptions,
++  PulsarOptions,
+   RedisOptions,
+   RmqOptions,
+ } from '../interfaces/microservice-configuration.interface';
+@@ -18,6 +19,7 @@ import { ClientKafka } from './client-kafka';
+ import { ClientMqtt } from './client-mqtt';
+ import { ClientNats } from './client-nats';
+ import { ClientProxy } from './client-proxy';
++import { ClientPulsar } from './client-pulsar';
+ import { ClientRedis } from './client-redis';
+ import { ClientRMQ } from './client-rmq';
+ import { ClientTCP } from './client-tcp';
+@@ -67,6 +69,10 @@ export class ClientProxyFactory {
+         ) as ClientProxy;
+       case Transport.KAFKA:
+         return new ClientKafka(options as Required<KafkaOptions>['options']);
++      case Transport.PULSAR:
++        return new ClientPulsar(
++          options as Required<PulsarOptions>['options'],
++        ) as ClientProxy;
+       default:
+         return new ClientTCP(
+           options as Required<TcpClientOptions>['options'],
+diff --git a/packages/microservices/client/client-proxy.ts b/packages/microservices/client/client-proxy.ts
+index e2d12463e..bd615e988 100644
+--- a/packages/microservices/client/client-proxy.ts
++++ b/packages/microservices/client/client-proxy.ts
+@@ -21,6 +21,7 @@ import {
+   MsPattern,
+   NatsOptions,
+   PacketId,
++  PulsarOptions,
+   ReadPacket,
+   RedisOptions,
+   RmqOptions,
+@@ -214,7 +215,8 @@ export abstract class ClientProxy<
+           | MqttOptions['options']
+           | TcpClientOptions['options']
+           | RmqOptions['options']
+-          | KafkaOptions['options'])!.serializer) ||
++          | KafkaOptions['options']
++          | PulsarOptions['options'])!.serializer) ||
+       new IdentitySerializer();
+   }
+ 
+@@ -227,7 +229,8 @@ export abstract class ClientProxy<
+           | MqttOptions['options']
+           | TcpClientOptions['options']
+           | RmqOptions['options']
+-          | KafkaOptions['options'])!.deserializer) ||
++          | KafkaOptions['options']
++          | PulsarOptions['options'])!.deserializer) ||
+       new IncomingResponseDeserializer();
+   }
+ }
+diff --git a/packages/microservices/client/index.ts b/packages/microservices/client/index.ts
+index c75c4849d..211803277 100644
+--- a/packages/microservices/client/index.ts
++++ b/packages/microservices/client/index.ts
+@@ -4,6 +4,7 @@ export * from './client-mqtt';
+ export * from './client-nats';
+ export * from './client-proxy';
+ export { ClientProxyFactory } from './client-proxy-factory';
++export * from './client-pulsar';
+ export * from './client-redis';
+ export * from './client-rmq';
+ export * from './client-tcp';
+diff --git a/packages/microservices/constants.ts b/packages/microservices/constants.ts
+index 6e7174a38..d6edce8b8 100644
+--- a/packages/microservices/constants.ts
++++ b/packages/microservices/constants.ts
+@@ -63,3 +63,20 @@ export const BLOCKED_RMQ_MESSAGE = (reason: string) =>
+ export const UNBLOCKED_RMQ_MESSAGE = 'RMQ broker has unblocked the connection.';
+ 
+ export const NATS_DEFAULT_GRACE_PERIOD = 10000;
++
++export const PULSAR_DEFAULT_URL = 'pulsar://localhost:6650';
++export const PULSAR_DEFAULT_SUBSCRIPTION = 'nestjs-subscription';
++export const PULSAR_DEFAULT_SUBSCRIPTION_TYPE = 'Exclusive';
++export const PULSAR_DEFAULT_TOPIC = '';
++export const PULSAR_DEFAULT_REPLY_TOPIC = '';
++export const PULSAR_DEFAULT_INITIAL_POSITION = 'Latest';
++export const PULSAR_DEFAULT_CONSUMER_NAME = '';
++
++export const NO_PULSAR_MESSAGE_HANDLER = (
++  text: TemplateStringsArray,
++  pattern: string,
++) =>
++  `An unsupported message was received. It has been negative acknowledged, so it will not be re-delivered. Pattern: ${pattern}`;
++export const DISCONNECTED_PULSAR_MESSAGE = `Disconnected from Pulsar. Trying to reconnect.`;
++export const PULSAR_CONNECTION_FAILED_MESSAGE =
++  'Connection to Pulsar failed. Trying to reconnect...';
+diff --git a/packages/microservices/ctx-host/index.ts b/packages/microservices/ctx-host/index.ts
+index 9d871dee2..b8b38e105 100644
+--- a/packages/microservices/ctx-host/index.ts
++++ b/packages/microservices/ctx-host/index.ts
+@@ -1,6 +1,7 @@
+ export * from './kafka.context';
+ export * from './mqtt.context';
+ export * from './nats.context';
++export * from './pulsar.context';
+ export * from './redis.context';
+ export * from './rmq.context';
+ export * from './tcp.context';
+diff --git a/packages/microservices/enums/transport.enum.ts b/packages/microservices/enums/transport.enum.ts
+index 4e685f2d2..84f52609d 100644
+--- a/packages/microservices/enums/transport.enum.ts
++++ b/packages/microservices/enums/transport.enum.ts
+@@ -6,4 +6,5 @@ export enum Transport {
+   GRPC,
+   RMQ,
+   KAFKA,
++  PULSAR,
+ }
+diff --git a/packages/microservices/events/index.ts b/packages/microservices/events/index.ts
+index df8d4959f..152188164 100644
+--- a/packages/microservices/events/index.ts
++++ b/packages/microservices/events/index.ts
+@@ -1,6 +1,7 @@
+ export { KafkaStatus } from './kafka.events';
+ export { MqttEvents, MqttStatus } from './mqtt.events';
+ export { NatsEvents, NatsStatus } from './nats.events';
++export { PulsarEvents, PulsarStatus } from './pulsar.events';
+ export { RedisEvents, RedisStatus } from './redis.events';
+ export { RmqEvents, RmqStatus } from './rmq.events';
+ export { TcpEvents, TcpStatus } from './tcp.events';
+diff --git a/packages/microservices/interfaces/client-metadata.interface.ts b/packages/microservices/interfaces/client-metadata.interface.ts
+index 415f54c2e..5645bb5e3 100644
+--- a/packages/microservices/interfaces/client-metadata.interface.ts
++++ b/packages/microservices/interfaces/client-metadata.interface.ts
+@@ -9,6 +9,7 @@ import {
+   KafkaOptions,
+   MqttOptions,
+   NatsOptions,
++  PulsarOptions,
+   RedisOptions,
+   RmqOptions,
+ } from './microservice-configuration.interface';
+@@ -21,7 +22,8 @@ export type ClientOptions =
+   | GrpcOptions
+   | KafkaOptions
+   | TcpClientOptions
+-  | RmqOptions;
++  | RmqOptions
++  | PulsarOptions;
+ 
+ /**
+  * @publicApi
+diff --git a/packages/microservices/interfaces/microservice-configuration.interface.ts b/packages/microservices/interfaces/microservice-configuration.interface.ts
+index 2e90a6592..95299ac0c 100644
+--- a/packages/microservices/interfaces/microservice-configuration.interface.ts
++++ b/packages/microservices/interfaces/microservice-configuration.interface.ts
+@@ -11,6 +11,12 @@ import {
+   ProducerRecord,
+ } from '../external/kafka.interface';
+ import { MqttClientOptions, QoS } from '../external/mqtt-options.interface';
++import {
++  PulsarClientConfig,
++  PulsarConsumerConfig,
++  PulsarProducerConfig,
++  PulsarReplyConsumerConfig,
++} from '../external/pulsar.interface';
+ import { IORedisOptions } from '../external/redis.interface';
+ import {
+   AmqpConnectionManagerSocketOptions,
+@@ -30,6 +36,7 @@ export type MicroserviceOptions =
+   | MqttOptions
+   | RmqOptions
+   | KafkaOptions
++  | PulsarOptions
+   | CustomStrategy;
+ 
+ export type TransportId = Transport | symbol;
+@@ -354,3 +361,16 @@ export interface KafkaOptions {
+     producerOnlyMode?: boolean;
+   };
+ }
++
++export interface PulsarOptions {
++  transport?: Transport.PULSAR;
++  options?: {
++    client?: PulsarClientConfig;
++    consumer?: PulsarConsumerConfig;
++    producer?: PulsarProducerConfig;
++    replyConsumer?: PulsarReplyConsumerConfig;
++    serializer?: Serializer;
++    deserializer?: Deserializer;
++    maxConnectionAttempts?: number;
++  };
++}
+diff --git a/packages/microservices/server/index.ts b/packages/microservices/server/index.ts
+index 078d17a2f..e95f029a4 100644
+--- a/packages/microservices/server/index.ts
++++ b/packages/microservices/server/index.ts
+@@ -3,6 +3,7 @@ export * from './server-grpc';
+ export * from './server-kafka';
+ export * from './server-mqtt';
+ export * from './server-nats';
++export * from './server-pulsar';
+ export * from './server-redis';
+ export * from './server-rmq';
+ export * from './server-tcp';
+diff --git a/packages/microservices/server/server-factory.ts b/packages/microservices/server/server-factory.ts
+index 35d226f78..f499dc96b 100644
+--- a/packages/microservices/server/server-factory.ts
++++ b/packages/microservices/server/server-factory.ts
+@@ -5,6 +5,7 @@ import {
+   MicroserviceOptions,
+   MqttOptions,
+   NatsOptions,
++  PulsarOptions,
+   RedisOptions,
+   RmqOptions,
+   TcpOptions,
+@@ -13,6 +14,7 @@ import { ServerGrpc } from './server-grpc';
+ import { ServerKafka } from './server-kafka';
+ import { ServerMqtt } from './server-mqtt';
+ import { ServerNats } from './server-nats';
++import { ServerPulsar } from './server-pulsar';
+ import { ServerRedis } from './server-redis';
+ import { ServerRMQ } from './server-rmq';
+ import { ServerTCP } from './server-tcp';
+@@ -36,6 +38,8 @@ export class ServerFactory {
+         return new ServerKafka(options as Required<KafkaOptions>['options']);
+       case Transport.RMQ:
+         return new ServerRMQ(options as Required<RmqOptions>['options']);
++      case Transport.PULSAR:
++        return new ServerPulsar(options as Required<PulsarOptions>['options']);
+       default:
+         return new ServerTCP(options as Required<TcpOptions>['options']);
+     }
+diff --git a/packages/microservices/server/server.ts b/packages/microservices/server/server.ts
+index 10b9e7244..563747a34 100644
+--- a/packages/microservices/server/server.ts
++++ b/packages/microservices/server/server.ts
+@@ -30,6 +30,7 @@ import {
+   MqttOptions,
+   MsPattern,
+   NatsOptions,
++  PulsarOptions,
+   ReadPacket,
+   RedisOptions,
+   RmqOptions,
+@@ -303,7 +304,8 @@ export abstract class Server<
+           | MqttOptions['options']
+           | TcpOptions['options']
+           | RmqOptions['options']
+-          | KafkaOptions['options'])!.serializer) ||
++          | KafkaOptions['options']
++          | PulsarOptions['options'])!.serializer) ||
+       new IdentitySerializer();
+   }
+ 
+@@ -316,7 +318,8 @@ export abstract class Server<
+           | MqttOptions['options']
+           | TcpOptions['options']
+           | RmqOptions['options']
+-          | KafkaOptions['options'])!.deserializer) ||
++          | KafkaOptions['options']
++          | PulsarOptions['options'])!.deserializer) ||
+       new IncomingRequestDeserializer();
+   }
+ 

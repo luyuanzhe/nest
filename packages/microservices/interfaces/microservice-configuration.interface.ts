@@ -11,6 +11,12 @@ import {
   ProducerRecord,
 } from '../external/kafka.interface';
 import { MqttClientOptions, QoS } from '../external/mqtt-options.interface';
+import {
+  PulsarClientConfig,
+  PulsarConsumerConfig,
+  PulsarProducerConfig,
+  PulsarReplyConsumerConfig,
+} from '../external/pulsar.interface';
 import { IORedisOptions } from '../external/redis.interface';
 import {
   AmqpConnectionManagerSocketOptions,
@@ -30,6 +36,7 @@ export type MicroserviceOptions =
   | MqttOptions
   | RmqOptions
   | KafkaOptions
+  | PulsarOptions
   | CustomStrategy;
 
 export type TransportId = Transport | symbol;
@@ -352,5 +359,18 @@ export interface KafkaOptions {
     deserializer?: Deserializer;
     parser?: KafkaParserConfig;
     producerOnlyMode?: boolean;
+  };
+}
+
+export interface PulsarOptions {
+  transport?: Transport.PULSAR;
+  options?: {
+    client?: PulsarClientConfig;
+    consumer?: PulsarConsumerConfig;
+    producer?: PulsarProducerConfig;
+    replyConsumer?: PulsarReplyConsumerConfig;
+    serializer?: Serializer;
+    deserializer?: Deserializer;
+    maxConnectionAttempts?: number;
   };
 }

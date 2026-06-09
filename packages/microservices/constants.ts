@@ -63,3 +63,20 @@ export const BLOCKED_RMQ_MESSAGE = (reason: string) =>
 export const UNBLOCKED_RMQ_MESSAGE = 'RMQ broker has unblocked the connection.';
 
 export const NATS_DEFAULT_GRACE_PERIOD = 10000;
+
+export const PULSAR_DEFAULT_URL = 'pulsar://localhost:6650';
+export const PULSAR_DEFAULT_SUBSCRIPTION = 'nestjs-subscription';
+export const PULSAR_DEFAULT_SUBSCRIPTION_TYPE = 'Exclusive';
+export const PULSAR_DEFAULT_TOPIC = '';
+export const PULSAR_DEFAULT_REPLY_TOPIC = '';
+export const PULSAR_DEFAULT_INITIAL_POSITION = 'Latest';
+export const PULSAR_DEFAULT_CONSUMER_NAME = '';
+
+export const NO_PULSAR_MESSAGE_HANDLER = (
+  text: TemplateStringsArray,
+  pattern: string,
+) =>
+  `An unsupported message was received. It has been negative acknowledged, so it will not be re-delivered. Pattern: ${pattern}`;
+export const DISCONNECTED_PULSAR_MESSAGE = `Disconnected from Pulsar. Trying to reconnect.`;
+export const PULSAR_CONNECTION_FAILED_MESSAGE =
+  'Connection to Pulsar failed. Trying to reconnect...';

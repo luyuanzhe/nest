@@ -5,6 +5,7 @@ import {
   MicroserviceOptions,
   MqttOptions,
   NatsOptions,
+  PulsarOptions,
   RedisOptions,
   RmqOptions,
   TcpOptions,
@@ -13,6 +14,7 @@ import { ServerGrpc } from './server-grpc';
 import { ServerKafka } from './server-kafka';
 import { ServerMqtt } from './server-mqtt';
 import { ServerNats } from './server-nats';
+import { ServerPulsar } from './server-pulsar';
 import { ServerRedis } from './server-redis';
 import { ServerRMQ } from './server-rmq';
 import { ServerTCP } from './server-tcp';
@@ -36,6 +38,8 @@ export class ServerFactory {
         return new ServerKafka(options as Required<KafkaOptions>['options']);
       case Transport.RMQ:
         return new ServerRMQ(options as Required<RmqOptions>['options']);
+      case Transport.PULSAR:
+        return new ServerPulsar(options as Required<PulsarOptions>['options']);
       default:
         return new ServerTCP(options as Required<TcpOptions>['options']);
     }

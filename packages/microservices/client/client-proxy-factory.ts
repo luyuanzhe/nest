@@ -10,6 +10,7 @@ import {
   KafkaOptions,
   MqttOptions,
   NatsOptions,
+  PulsarOptions,
   RedisOptions,
   RmqOptions,
 } from '../interfaces/microservice-configuration.interface';
@@ -18,6 +19,7 @@ import { ClientKafka } from './client-kafka';
 import { ClientMqtt } from './client-mqtt';
 import { ClientNats } from './client-nats';
 import { ClientProxy } from './client-proxy';
+import { ClientPulsar } from './client-pulsar';
 import { ClientRedis } from './client-redis';
 import { ClientRMQ } from './client-rmq';
 import { ClientTCP } from './client-tcp';
@@ -67,6 +69,10 @@ export class ClientProxyFactory {
         ) as ClientProxy;
       case Transport.KAFKA:
         return new ClientKafka(options as Required<KafkaOptions>['options']);
+      case Transport.PULSAR:
+        return new ClientPulsar(
+          options as Required<PulsarOptions>['options'],
+        ) as ClientProxy;
       default:
         return new ClientTCP(
           options as Required<TcpClientOptions>['options'],
